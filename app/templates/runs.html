@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% block title %}Runs – Tigers Analytics{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Analysis Runs</h1>
+    <p class="text-slate-500 dark:text-slate-400 mt-2">Ein Run ist die konkrete Auswertung eines Spiels aus Sicht eines Fokus-Teams.</p>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section class="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Neuer Run</h2>
+        <form method="post" action="{{ url_for('main.runs') }}" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Game</label>
+                <select name="game_id" id="game_id" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                    <option value="">Bitte wählen</option>
+                    {% for game in games %}
+                    <option value="{{ game.id }}">{{ game.label }} · {{ game.home_team.name if game.home_team else 'Unbekannt' }} vs. {{ game.away_team.name if game.away_team else 'Unbekannt' }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Fokus-Team</label>
+                <select name="focus_team_id" id="focus_team_id" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                    <option value="">Bitte wählen</option>
+                </select>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Für dasselbe Spiel kannst du mehrere Runs mit unterschiedlichem Fokus anlegen.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Analysemodus</label>
+                <select name="analysis_mode" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                    <option value="opponent_scouting">Opponent Scouting</option>
+                    <option value="self_scouting">Self Scouting</option>
+                    <option value="quality_control">Quality Control</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Notizen</label>
+                <textarea name="notes" rows="3" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm"></textarea>
+            </div>
+            <label class="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
+                <input type="checkbox" name="start_now" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                Run sofort mit allen vorhandenen Clips analysieren
+            </label>
+            <button type="submit" class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg text-sm">
+                <i class="bi bi-play-circle mr-2"></i>Run anlegen
+            </button>
+        </form>
+    </section>
+
+    <section class="xl:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Aktuelle Runs</h2>
+            <span class="text-sm text-slate-500 dark:text-slate-400">{{ runs|length }} Einträge</span>
+        </div>
+        {% if runs %}
+        <div class="space-y-3">
+            {% for run in runs %}
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <div class="font-medium text-slate-900 dark:text-white">{{ run.game.label }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ run.game.home_team.name if run.game.home_team else 'Unbekannt' }} vs. {{ run.game.away_team.name if run.game.away_team else 'Unbekannt' }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Fokus: {{ run.focus_team.name }} · {{ run.analysis_mode }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Clips: {{ run.processed_clips }}/{{ run.total_clips }} {% if run.failed_clips %}· Fehler: {{ run.failed_clips }}{% endif %}</div>
+                    {% if run.notes %}
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-2">{{ run.notes }}</div>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 text-xs font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full">{{ run.status }}</span>
+                    <form method="post" action="{{ url_for('main.analyze_run', run_id=run.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">
+                            <i class="bi bi-stars mr-1"></i>Alle Clips analysieren
+                        </button>
+                    </form>
+                    <form method="post" action="{{ url_for('main.delete_run', run_id=run.id) }}" onsubmit="return confirm('Analyse-Run wirklich löschen?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="px-3 py-2 text-sm font-medium text-red-600 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition">
+                            <i class="bi bi-trash mr-1"></i>Löschen
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center justify-center py-12 text-center">
+            <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
+                <i class="bi bi-play-circle text-slate-400 text-4xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Runs angelegt</h3>
+            <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Dasselbe Spiel kann mehrfach mit unterschiedlichen Fokus-Teams ausgewertet werden.</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+
+<script>
+    const gameSelect = document.getElementById('game_id');
+    const focusSelect = document.getElementById('focus_team_id');
+    const gameTeams = {
+        {% for game in games %}
+        "{{ game.id }}": [
+            {% if game.home_team %}{ id: "{{ game.home_team.id }}", name: "{{ game.home_team.name|e }}" },{% endif %}
+            {% if game.away_team and (not game.home_team or game.away_team.id != game.home_team.id) %}{ id: "{{ game.away_team.id }}", name: "{{ game.away_team.name|e }}" }{% endif %}
+        ],
+        {% endfor %}
+    };
+
+    function updateFocusOptions() {
+        const selected = gameSelect.value;
+        const teams = gameTeams[selected] || [];
+        focusSelect.innerHTML = '<option value="">Bitte wählen</option>';
+        teams.forEach(team => {
+            const option = document.createElement('option');
+            option.value = team.id;
+            option.textContent = team.name;
+            focusSelect.appendChild(option);
+        });
+    }
+
+    gameSelect.addEventListener('change', updateFocusOptions);
+</script>
+{% endblock %}
+{% block extra_js %}
+<script>
+    const hasRunningRun = {{ 'true' if runs | selectattr('status', 'in', ['queued', 'running']) | list | length > 0 else 'false' }};
+    if (hasRunningRun) {
+        setTimeout(() => window.location.reload(), 5000);
+    }
+</script>
+{% endblock %}

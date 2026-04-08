@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard – Tigers Analytics{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-sm font-medium mb-4">
+        <i class="bi bi-stars"></i>
+        MVP-Grundgerüst
+    </div>
+    <h1 class="text-3xl font-bold text-slate-900 dark:text-white">AI-gestützte Spielanalyse für Staff und Coaches</h1>
+    <p class="text-slate-500 dark:text-slate-400 mt-2 max-w-3xl">
+        Dieser erste Stand stellt die Plattformbasis bereit: zentrale Anmeldung über <code>tt-auth</code>,
+        Analytics-Dashboard, Postgres-Anbindung und erste Domänenobjekte für Teams, Seasons und Games.
+    </p>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
+                <i class="bi bi-diagram-3 text-indigo-600 dark:text-indigo-400 text-2xl"></i>
+            </div>
+        </div>
+        <div class="text-sm text-slate-500 dark:text-slate-400">Teams</div>
+        <div class="text-3xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.teams }}</div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
+                <i class="bi bi-film text-indigo-600 dark:text-indigo-400 text-2xl"></i>
+            </div>
+        </div>
+        <div class="text-sm text-slate-500 dark:text-slate-400">Games</div>
+        <div class="text-3xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.games }}</div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
+                <i class="bi bi-hourglass-split text-indigo-600 dark:text-indigo-400 text-2xl"></i>
+            </div>
+            <span class="px-2 py-0.5 text-xs font-medium bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-full">MVP</span>
+        </div>
+        <div class="text-sm text-slate-500 dark:text-slate-400">Status</div>
+        <div class="text-3xl font-bold text-slate-900 dark:text-white mt-1">Basis</div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
+                <i class="bi bi-play-circle text-indigo-600 dark:text-indigo-400 text-2xl"></i>
+            </div>
+        </div>
+        <div class="text-sm text-slate-500 dark:text-slate-400">Analysis Runs</div>
+        <div class="text-3xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.runs }}</div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div class="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
+                <i class="bi bi-file-earmark-text text-indigo-600 dark:text-indigo-400 text-2xl"></i>
+            </div>
+        </div>
+        <div class="text-sm text-slate-500 dark:text-slate-400">Reports</div>
+        <div class="text-3xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.reports }}</div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <section class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Nächste Ausbaustufen</h2>
+        <div class="space-y-4">
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div class="font-medium text-slate-900 dark:text-white">1. Gegner- und Spielverwaltung</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Teams, Spiele und Analyse-Läufe im UI erfassen.</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div class="font-medium text-slate-900 dark:text-white">2. Clip-Upload und Queue</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Clips hochladen und über Nacht asynchron analysieren.</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div class="font-medium text-slate-900 dark:text-white">3. LiteLLM und Gemini</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Strukturiertes Play-JSON pro Clip erzeugen.</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Letzte Games</h2>
+        {% if recent_games %}
+        <div class="space-y-3">
+            {% for game in recent_games %}
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div class="font-medium text-slate-900 dark:text-white">{{ game.label }}</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ game.home_team.name if game.home_team else 'Unbekannt' }} vs. {{ game.away_team.name if game.away_team else 'Unbekannt' }} · {{ game.source_type }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center justify-center py-12 text-center">
+            <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
+                <i class="bi bi-camera-reels text-slate-400 text-4xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Spiele angelegt</h3>
+            <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Die ersten Gegner- oder Eigenspiele können als Nächstes erfasst werden.</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Letzte Runs</h2>
+        {% if recent_runs %}
+        <div class="space-y-3">
+            {% for run in recent_runs %}
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div class="font-medium text-slate-900 dark:text-white">{{ run.game.label }}</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Fokus: {{ run.focus_team.name }} · {{ run.analysis_mode }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center justify-center py-12 text-center">
+            <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
+                <i class="bi bi-play-circle text-slate-400 text-4xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Runs angelegt</h3>
+            <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Ein Spiel kann mehrere Analyse-Perspektiven haben.</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Letzte Reports</h2>
+        {% if recent_reports %}
+        <div class="space-y-3">
+            {% for report in recent_reports %}
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div class="font-medium text-slate-900 dark:text-white">{{ report.title }}</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Fokus: {{ report.focus_team.name }} · {{ report.report_type }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center justify-center py-12 text-center">
+            <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
+                <i class="bi bi-file-earmark-text text-slate-400 text-4xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Reports erstellt</h3>
+            <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Mehrere Runs für dasselbe Fokus-Team ergeben einen gemeinsamen Report.</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

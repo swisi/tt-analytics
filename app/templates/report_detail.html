@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% block title %}{{ report.title }} – Tigers Analytics{% endblock %}
+
+{% block content %}
+<div class="mb-8 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+    <div>
+        <a href="{{ url_for('main.reports') }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+            <i class="bi bi-arrow-left mr-1"></i>Zurück zu Reports
+        </a>
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white mt-2">{{ report.title }}</h1>
+        <p class="text-slate-500 dark:text-slate-400 mt-2">
+            Fokus-Team: {{ report.focus_team.name }} · {{ report.report_type }} · {{ report.status }}
+        </p>
+    </div>
+    <div class="rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 px-5 py-4">
+        <div class="text-xs uppercase tracking-wide text-indigo-600 dark:text-indigo-300">Analysierte Clips</div>
+        <div class="text-3xl font-bold text-indigo-700 dark:text-indigo-200 mt-1">{{ metrics.analyzed_clips }}</div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section class="xl:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Zusammenfassung</h2>
+            <pre class="whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-xl p-4">{{ report.summary or 'Noch keine Zusammenfassung vorhanden.' }}</pre>
+        </div>
+
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Top-Muster aus den Clip-Analysen</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                    <div class="text-sm font-medium text-slate-900 dark:text-white mb-3">Play Types</div>
+                    {% if metrics.top_play_types %}
+                    <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        {% for label, count in metrics.top_play_types %}
+                        <li class="flex items-center justify-between"><span>{{ label }}</span><strong>{{ count }}</strong></li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Noch keine Daten.</p>
+                    {% endif %}
+                </div>
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                    <div class="text-sm font-medium text-slate-900 dark:text-white mb-3">Side of Ball</div>
+                    {% if metrics.top_sides %}
+                    <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        {% for label, count in metrics.top_sides %}
+                        <li class="flex items-center justify-between"><span>{{ label }}</span><strong>{{ count }}</strong></li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Noch keine Daten.</p>
+                    {% endif %}
+                </div>
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                    <div class="text-sm font-medium text-slate-900 dark:text-white mb-3">Formations</div>
+                    {% if metrics.top_formations %}
+                    <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        {% for label, count in metrics.top_formations %}
+                        <li class="flex items-center justify-between"><span>{{ label }}</span><strong>{{ count }}</strong></li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Noch keine Daten.</p>
+                    {% endif %}
+                </div>
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                    <div class="text-sm font-medium text-slate-900 dark:text-white mb-3">Coverages</div>
+                    {% if metrics.top_coverages %}
+                    <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                        {% for label, count in metrics.top_coverages %}
+                        <li class="flex items-center justify-between"><span>{{ label }}</span><strong>{{ count }}</strong></li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Noch keine Daten.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Coach Notes aus AI-Analysen</h2>
+            {% if metrics.notes %}
+            <div class="space-y-2">
+                {% for note in metrics.notes %}
+                <div class="rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                    {{ note }}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-500 dark:text-slate-400">Noch keine Notes aus fertigen Clip-Analysen vorhanden.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="space-y-6">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Enthaltene Runs</h2>
+            <div class="space-y-3">
+                {% for entry in report.runs %}
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                    <div class="font-medium text-slate-900 dark:text-white">{{ entry.analysis_run.game.label }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        Fokus: {{ entry.analysis_run.focus_team.name }} · {{ entry.analysis_run.analysis_mode }}
+                    </div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        Clips: {{ entry.analysis_run.processed_clips }}/{{ entry.analysis_run.total_clips }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Outcomes</h2>
+            {% if metrics.top_results %}
+            <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                {% for label, count in metrics.top_results %}
+                <li class="flex items-center justify-between"><span>{{ label }}</span><strong>{{ count }}</strong></li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-sm text-slate-500 dark:text-slate-400">Noch keine Daten.</p>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

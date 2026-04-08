@@ -1,0 +1,47 @@
+services:
+  tt-analytics:
+    build:
+      context: .
+    container_name: tt-analytics
+    ports:
+      - "${ANALYTICS_PORT:-8087}:5000"
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      SQLALCHEMY_DATABASE_URI: ${SQLALCHEMY_DATABASE_URI}
+      AUTH_BASE_URL: ${AUTH_BASE_URL:-http://localhost:8085}
+      SSO_SHARED_SECRET: ${SSO_SHARED_SECRET}
+      SSO_EXPECTED_AUDIENCE: ${SSO_EXPECTED_AUDIENCE:-tt-analytics}
+      SSO_AUTO_PROVISION_USERS: ${SSO_AUTO_PROVISION_USERS:-true}
+      SSO_SYNC_ROLE: ${SSO_SYNC_ROLE:-true}
+      AUTO_CREATE_DB: ${AUTO_CREATE_DB:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      UPLOAD_ROOT: ${UPLOAD_ROOT:-/app/instance/uploads}
+      MAX_CONTENT_LENGTH: ${MAX_CONTENT_LENGTH:-2147483648}
+      TZ: ${TZ:-Europe/Zurich}
+    volumes:
+      - tt-analytics-uploads:/app/instance/uploads
+    depends_on:
+      tt-postgres-analytics:
+        condition: service_healthy
+    restart: unless-stopped
+
+  tt-postgres-analytics:
+    image: postgres:16
+    container_name: tt-postgres-analytics
+    environment:
+      POSTGRES_DB: ${POSTGRES_ANALYTICS_DB:-tt_analytics}
+      POSTGRES_USER: ${POSTGRES_ANALYTICS_USER:-tt_analytics}
+      POSTGRES_PASSWORD: ${POSTGRES_ANALYTICS_PASSWORD:-tt_analytics_password}
+      TZ: ${TZ:-Europe/Zurich}
+    volumes:
+      - tt-analytics-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ANALYTICS_USER:-tt_analytics} -d ${POSTGRES_ANALYTICS_DB:-tt_analytics}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  tt-analytics-postgres-data:
+  tt-analytics-uploads:

@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% block title %}Games – Tigers Analytics{% endblock %}
+
+{% block content %}
+<div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Games</h1>
+        <p class="text-slate-500 dark:text-slate-400 mt-2">Ein Game ist das neutrale Spielmaterial mit Heimteam und Gastteam. Der Analysefokus liegt später im Run.</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section class="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Neues Spiel</h2>
+        <form method="post" action="{{ url_for('main.games') }}" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label for="label" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Bezeichnung</label>
+                <input id="label" name="label" type="text" required class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm" placeholder="z. B. Tigers vs. Grizzlies Week 1">
+            </div>
+            <div>
+                <label for="game_date" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Datum</label>
+                <input id="game_date" name="game_date" type="date" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
+            </div>
+            <div>
+                <label for="season_id" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Season</label>
+                <select id="season_id" name="season_id" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
+                    <option value="">Keine Season</option>
+                    {% for season in seasons %}
+                    <option value="{{ season.id }}">{{ season.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="own_team_id" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Heimteam</label>
+                <select id="own_team_id" name="own_team_id" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
+                    <option value="">Nicht gesetzt</option>
+                    {% for team in teams %}
+                    <option value="{{ team.id }}" {% if team.is_own_team %}selected{% endif %}>{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="opponent_team_id" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Gastteam</label>
+                <select id="opponent_team_id" name="opponent_team_id" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
+                    <option value="">Nicht gesetzt</option>
+                    {% for team in teams %}
+                    <option value="{{ team.id }}">{{ team.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="source_type" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Quelle</label>
+                <select id="source_type" name="source_type" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
+                    <option value="opponent_film">Opponent Film</option>
+                    <option value="own_game">Own Game</option>
+                    <option value="practice_cutup">Practice Cutup</option>
+                </select>
+            </div>
+            <div>
+                <label for="notes" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Notizen</label>
+                <textarea id="notes" name="notes" rows="4" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm" placeholder="optional"></textarea>
+            </div>
+            <button type="submit" class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg text-sm">
+                <i class="bi bi-plus-circle mr-2"></i>Spiel anlegen
+            </button>
+        </form>
+    </section>
+
+    <section class="xl:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Aktuelle Games</h2>
+            <span class="text-sm text-slate-500 dark:text-slate-400">{{ games|length }} Einträge</span>
+        </div>
+        {% if games %}
+        <div class="space-y-3">
+            {% for game in games %}
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <form method="post" action="{{ url_for('main.edit_game', game_id=game.id) }}" class="space-y-3">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Bezeichnung</label>
+                            <input name="label" type="text" value="{{ game.label }}" required class="block w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Datum</label>
+                            <input name="game_date" type="date" value="{{ game.game_date.isoformat() if game.game_date else '' }}" class="block w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Season</label>
+                            <select name="season_id" class="block w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                                <option value="">Keine Season</option>
+                                {% for season in seasons %}
+                                <option value="{{ season.id }}" {% if game.season_id == season.id %}selected{% endif %}>{{ season.label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Heimteam</label>
+                            <select name="own_team_id" class="block w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                                <option value="">Nicht gesetzt</option>
+                                {% for team in teams %}
+                                <option value="{{ team.id }}" {% if game.home_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Gastteam</label>
+                            <select name="opponent_team_id" class="block w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                                <option value="">Nicht gesetzt</option>
+                                {% for team in teams %}
+                                <option value="{{ team.id }}" {% if game.away_team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Quelle</label>
+                            <select name="source_type" class="block w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                                <option value="opponent_film" {% if game.source_type == 'opponent_film' %}selected{% endif %}>Opponent Film</option>
+                                <option value="own_game" {% if game.source_type == 'own_game' %}selected{% endif %}>Own Game</option>
+                                <option value="practice_cutup" {% if game.source_type == 'practice_cutup' %}selected{% endif %}>Practice Cutup</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Notizen</label>
+                            <textarea name="notes" rows="3" class="block w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">{{ game.notes or '' }}</textarea>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <a href="{{ url_for('main.game_clips', game_id=game.id) }}" class="px-3 py-2 text-sm font-medium text-slate-600 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition">
+                            <i class="bi bi-camera-reels mr-1"></i>Clips
+                        </a>
+                        <a href="{{ url_for('main.runs') }}" class="px-3 py-2 text-sm font-medium text-slate-600 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition">
+                            <i class="bi bi-play-circle mr-1"></i>Zu Runs
+                        </a>
+                        <button type="submit" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">
+                            <i class="bi bi-save mr-1"></i>Speichern
+                        </button>
+                        <button type="submit" formaction="{{ url_for('main.delete_game', game_id=game.id) }}" formmethod="post" onclick="return confirm('Spiel wirklich löschen?');" class="px-3 py-2 text-sm font-medium text-red-600 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition">
+                            <i class="bi bi-trash mr-1"></i>Löschen
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center justify-center py-12 text-center">
+            <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
+                <i class="bi bi-film text-slate-400 text-4xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Spiele angelegt</h3>
+            <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Lege zuerst Gegner- oder Eigenspiele an.</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

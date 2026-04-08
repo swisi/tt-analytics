@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}Reports – Tigers Analytics{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Reports</h1>
+    <p class="text-slate-500 dark:text-slate-400 mt-2">Ein Report aggregiert mehrere Runs für dasselbe Fokus-Team über ein oder mehrere Spiele.</p>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section class="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Neuer Report</h2>
+        <form method="post" action="{{ url_for('main.reports') }}" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Titel</label>
+                <input name="title" type="text" required class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm" placeholder="z. B. Scouting Report Genf">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Report-Typ</label>
+                <select name="report_type" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                    <option value="multi_game_opponent">Multi Game Opponent</option>
+                    <option value="single_game">Single Game</option>
+                    <option value="self_scout">Self Scout</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Analyse-Runs</label>
+                <div class="max-h-80 overflow-auto space-y-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                    {% for run in available_runs %}
+                    <label class="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
+                        <input type="checkbox" name="run_ids" value="{{ run.id }}" class="mt-1 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                        <span>
+                            <strong>{{ run.focus_team.name }}</strong> · {{ run.game.label }}<br>
+                            <span class="text-slate-500 dark:text-slate-400">{{ run.analysis_mode }}</span>
+                        </span>
+                    </label>
+                    {% else %}
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Noch keine Runs verfügbar.</p>
+                    {% endfor %}
+                </div>
+            </div>
+            <button type="submit" class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg text-sm">
+                <i class="bi bi-file-earmark-plus mr-2"></i>Report anlegen
+            </button>
+        </form>
+    </section>
+
+    <section class="xl:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Aktuelle Reports</h2>
+            <span class="text-sm text-slate-500 dark:text-slate-400">{{ reports|length }} Einträge</span>
+        </div>
+        {% if reports %}
+        <div class="space-y-3">
+            {% for report in reports %}
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col gap-3">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <div class="font-medium text-slate-900 dark:text-white">{{ report.title }}</div>
+                        <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Fokus: {{ report.focus_team.name }} · {{ report.report_type }}</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 text-xs font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full">{{ report.status }}</span>
+                        <a href="{{ url_for('main.report_detail', report_id=report.id) }}" class="px-3 py-2 text-sm font-medium text-indigo-700 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition">
+                            <i class="bi bi-eye mr-1"></i>Öffnen
+                        </a>
+                        <form method="post" action="{{ url_for('main.delete_report', report_id=report.id) }}" onsubmit="return confirm('Report wirklich löschen?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="px-3 py-2 text-sm font-medium text-red-600 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition">
+                                <i class="bi bi-trash mr-1"></i>Löschen
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% if report.summary %}
+                <pre class="whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-xl p-4">{{ report.summary }}</pre>
+                {% endif %}
+                <div class="text-sm text-slate-500 dark:text-slate-400">
+                    Enthaltene Runs:
+                    {% for entry in report.runs %}
+                        {{ entry.analysis_run.game.label }}{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center justify-center py-12 text-center">
+            <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
+                <i class="bi bi-file-earmark-text text-slate-400 text-4xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Reports erstellt</h3>
+            <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Wähle mehrere Runs für dasselbe Fokus-Team und fasse sie zu einem Report zusammen.</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

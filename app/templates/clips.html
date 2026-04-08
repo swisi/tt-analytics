@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% block title %}Clips – Tigers Analytics{% endblock %}
+
+{% block content %}
+<div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Clips für {{ game.label }}</h1>
+        <p class="text-slate-500 dark:text-slate-400 mt-2">
+            {{ game.home_team.name if game.home_team else 'Unbekannt' }} vs. {{ game.away_team.name if game.away_team else 'Unbekannt' }}
+        </p>
+    </div>
+    <a href="{{ url_for('main.games') }}" class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+        <i class="bi bi-arrow-left mr-2"></i>Zurück zu Games
+    </a>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section class="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Clips hochladen</h2>
+        <form method="post" action="{{ url_for('main.game_clips', game_id=game.id) }}" enctype="multipart/form-data" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label for="clips" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Dateien</label>
+                <input id="clips" name="clips" type="file" multiple accept="video/*" class="block w-full text-sm text-slate-700 dark:text-slate-200 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-900/40 dark:file:text-indigo-300 dark:bg-slate-700 dark:border dark:border-slate-600 rounded-lg">
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Für den MVP gehen wir davon aus, dass die Spiele bereits in einzelne Spielzüge aufgeteilt sind.</p>
+            </div>
+            <button type="submit" class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg text-sm">
+                <i class="bi bi-upload mr-2"></i>Clips hochladen
+            </button>
+        </form>
+
+        <div class="mt-8 pt-8 border-t border-slate-200 dark:border-slate-700">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-3">Breakdown importieren</h3>
+            <form method="post" action="{{ url_for('main.import_breakdown', game_id=game.id) }}" enctype="multipart/form-data" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div>
+                    <label for="breakdown_file" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Excel-Datei</label>
+                    <input id="breakdown_file" name="breakdown_file" type="file" accept=".xlsx" class="block w-full text-sm text-slate-700 dark:text-slate-200 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-900/40 dark:file:text-indigo-300 dark:bg-slate-700 dark:border dark:border-slate-600 rounded-lg">
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Play-by-Play-Daten werden als zusätzlicher Kontext pro Clip gespeichert und später der AI mitgegeben.</p>
+                </div>
+                <button type="submit" class="w-full py-2.5 px-4 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition text-sm font-medium">
+                    <i class="bi bi-file-earmark-spreadsheet mr-2"></i>Breakdown importieren
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <section class="xl:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Hochgeladene Clips</h2>
+            <span class="text-sm text-slate-500 dark:text-slate-400">{{ clips|length }} Einträge</span>
+        </div>
+        {% if clips %}
+        <div class="space-y-3">
+            {% for clip in clips %}
+            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <div class="font-medium text-slate-900 dark:text-white">Clip {{ clip.clip_number or '-' }} · {{ clip.original_filename }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        {{ clip.content_type or 'video/*' }}
+                        {% if clip.file_size_bytes %} · {{ (clip.file_size_bytes / (1024 * 1024)) | round(2) }} MB{% endif %}
+                    </div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ clip.status }}</div>
+                    {% set breakdown = clip.metadata_entries | selectattr('source_kind', 'equalto', 'breakdown_excel') | list | first %}
+                    {% if breakdown %}
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        Breakdown: Play #{{ breakdown.payload_json.get('PLAY #', '-') }}
+                        {% if breakdown.payload_json.get('DN') %} · Down {{ breakdown.payload_json.get('DN') }}{% endif %}
+                        {% if breakdown.payload_json.get('DIST') %} & {{ breakdown.payload_json.get('DIST') }}{% endif %}
+                        {% if breakdown.payload_json.get('PLAY TYPE') %} · {{ breakdown.payload_json.get('PLAY TYPE') }}{% endif %}
+                    </div>
+                    {% endif %}
+                    {% if clip.analyses %}
+                    <div class="mt-3 space-y-2">
+                        {% for analysis in clip.analyses %}
+                        <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-3">
+                            <div class="text-sm font-medium text-slate-800 dark:text-slate-200">
+                                Run {{ analysis.analysis_run.id }} · {{ analysis.analysis_run.focus_team.name }} · {{ analysis.status }}
+                            </div>
+                            {% if analysis.result_json %}
+                            <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                {{ analysis.result_json.get('play_type', 'unknown') }} · {{ analysis.result_json.get('summary', '') }}
+                            </div>
+                            {% endif %}
+                            {% if analysis.error_message %}
+                            <div class="text-sm text-red-600 dark:text-red-400 mt-1">{{ analysis.error_message }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="flex flex-col gap-2 sm:items-end">
+                    <form method="post" action="{{ url_for('main.analyze_clip', clip_id=clip.id) }}" class="flex flex-col gap-2 sm:flex-row">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <select name="run_id" class="px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 min-w-56">
+                            <option value="">Run wählen</option>
+                            {% for run in runs %}
+                            <option value="{{ run.id }}">Run {{ run.id }} · {{ run.focus_team.name }} · {{ run.analysis_mode }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">
+                            <i class="bi bi-stars mr-1"></i>AI analysieren
+                        </button>
+                    </form>
+                    <form method="post" action="{{ url_for('main.delete_clip', clip_id=clip.id) }}" onsubmit="return confirm('Clip wirklich löschen?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="px-3 py-2 text-sm font-medium text-red-600 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition">
+                            <i class="bi bi-trash mr-1"></i>Löschen
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center justify-center py-12 text-center">
+            <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
+                <i class="bi bi-camera-reels text-slate-400 text-4xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Clips hochgeladen</h3>
+            <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Lade die bereits geschnittenen Spielzüge dieses Spiels hoch.</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

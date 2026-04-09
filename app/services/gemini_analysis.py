@@ -14,6 +14,20 @@ ANALYSIS_SCHEMA = {
         "side_of_ball": {"type": "string"},
         "play_type": {"type": "string"},
         "summary": {"type": "string"},
+        "game_state": {
+            "type": "object",
+            "properties": {
+                "quarter": {"type": ["integer", "null"]},
+                "series": {"type": ["integer", "null"]},
+                "down": {"type": ["integer", "null"]},
+                "distance": {"type": ["integer", "null"]},
+                "yard_line": {"type": ["string", "null"]},
+                "hash": {"type": ["string", "null"]},
+                "situation": {"type": ["string", "null"]},
+                "two_minute": {"type": ["boolean", "null"]},
+            },
+            "required": ["quarter", "series", "down", "distance", "yard_line", "hash", "situation", "two_minute"],
+        },
         "offense": {
             "type": "object",
             "properties": {
@@ -44,6 +58,18 @@ ANALYSIS_SCHEMA = {
             },
             "required": ["result", "yards_gained", "field_zone", "situation"],
         },
+        "hudl_fields": {
+            "type": "object",
+            "properties": {
+                "odk": {"type": ["string", "null"]},
+                "off_form": {"type": ["string", "null"]},
+                "def_front": {"type": ["string", "null"]},
+                "gain_loss": {"type": ["integer", "null"]},
+                "motion_dir": {"type": ["string", "null"]},
+                "result_label": {"type": ["string", "null"]},
+            },
+            "required": ["odk", "off_form", "def_front", "gain_loss", "motion_dir", "result_label"],
+        },
         "confidence": {"type": "number"},
         "notes": {"type": "array", "items": {"type": "string"}},
     },
@@ -53,9 +79,11 @@ ANALYSIS_SCHEMA = {
         "side_of_ball",
         "play_type",
         "summary",
+        "game_state",
         "offense",
         "defense",
         "outcome",
+        "hudl_fields",
         "confidence",
         "notes",
     ],
@@ -94,6 +122,8 @@ Important rules:
 - If something is unclear from the video, set the field to null and mention uncertainty in notes.
 - Prefer observations from the video over spreadsheet context if they conflict.
 - Keep the summary short and coach-friendly.
+- Prioritize a practical tagging output that can later be exported into a Hudl-style playlist sheet.
+- QTR and outcome.result are especially important. Fill them when they are visible or directly inferable from the clip context; otherwise leave them null.
 """.strip()
 
     if analysis_run.analysis_mode == "play_by_play":
@@ -103,6 +133,8 @@ For play_by_play mode:
 - Prioritize exact situational context, sequence order and immediate outcome of this specific play.
 - Keep the summary factual and event-driven instead of trend-oriented.
 - Add notes only for directly relevant coaching or execution details.
+- Populate game_state as completely as the video allows without guessing.
+- Use hudl_fields as export-ready aliases for the most useful playlist columns.
 """.strip()
 
     if breakdown_payload:
@@ -110,6 +142,26 @@ For play_by_play mode:
         for key, value in breakdown_payload.items():
             if value not in ("", None):
                 prompt += f"- {key}: {value}\n"
+
+    prompt += "\n\n" + """
+Field guidance:
+- game_state.quarter: integer quarter number, or null if not visible.
+- game_state.series: possession/drive number only if you can determine it with confidence.
+- game_state.down: integer down, or null.
+- game_state.distance: yards to gain as integer, or null.
+- game_state.yard_line: preserve the broadcast/charting style if visible, for example "-15", "45", "Own 25", or null.
+- game_state.hash: use "L", "M", "R" when visible; otherwise null.
+- side_of_ball: "Offense", "Defense", or "Special Teams".
+- play_type: short coach-friendly tag such as "Run", "Pass", "Punt", "Kickoff Return", "Punt Return", "Field Goal".
+- outcome.result: concise football result such as "Completion", "Incomplete", "Touchdown", "First Down", "Short Gain", "Tackle For Loss", "Sack", "Kickoff Return".
+- outcome.yards_gained: signed integer when visible or directly inferable, else null.
+- offense.formation and hudl_fields.off_form should usually match.
+- defense.front and hudl_fields.def_front should usually match.
+- hudl_fields.odk: use Hudl-style one-letter code where possible: "O" offense, "D" defense, "K" kicking game / special teams.
+- hudl_fields.gain_loss: signed integer mirror of outcome.yards_gained when known.
+- hudl_fields.result_label: short export label aligned with outcome.result.
+- Never invent player names, jersey numbers, or drive numbers.
+""".strip()
 
     return prompt
 
@@ -145,6 +197,180 @@ def _generate_with_retry(client, model_name, contents, config, generation_config
     raise RuntimeError("Gemini-Generierung konnte nicht abgeschlossen werden.")
 
 
+def _first_breakdown_value(payload, keys):
+    for key in keys:
+        value = (payload or {}).get(key)
+        if value not in ("", None):
+            return value
+    return None
+
+
+def _get_nested(mapping, path):
+    current = mapping
+    for key in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+def _set_nested(mapping, path, value):
+    current = mapping
+    for key in path[:-1]:
+        child = current.get(key)
+        if not isinstance(child, dict):
+            child = {}
+            current[key] = child
+        current = child
+    current[path[-1]] = value
+
+
+def _is_missing_value(value):
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip().casefold() in {"", "null", "none", "n/a", "na", "unknown", "-", "tbd"}
+    return False
+
+
+def _coerce_int(value):
+    if _is_missing_value(value):
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    match = re.search(r"-?\d+", str(value))
+    return int(match.group(0)) if match else None
+
+
+def _coerce_bool(value):
+    if _is_missing_value(value):
+        return None
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().casefold()
+    truthy = {"true", "yes", "y", "1", "blitz", "pressure"}
+    falsy = {"false", "no", "n", "0", "no blitz", "no pressure"}
+    if normalized in truthy:
+        return True
+    if normalized in falsy:
+        return False
+    return None
+
+
+def _coerce_string(value):
+    if _is_missing_value(value):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _coerce_value(value, kind):
+    if kind == "int":
+        return _coerce_int(value)
+    if kind == "bool":
+        return _coerce_bool(value)
+    return _coerce_string(value)
+
+
+def _normalize_for_compare(value, kind):
+    coerced = _coerce_value(value, kind)
+    if coerced is None:
+        return None
+    if kind == "string":
+        return str(coerced).strip().casefold()
+    return coerced
+
+
+def _apply_breakdown_fallbacks(result, breakdown_payload):
+    breakdown_payload = breakdown_payload or {}
+    field_specs = [
+        {"name": "play_type", "path": ("play_type",), "keys": ("PLAY TYPE",), "kind": "string"},
+        {"name": "side_of_ball", "path": ("side_of_ball",), "keys": ("SIDE",), "kind": "string"},
+        {"name": "summary", "path": ("summary",), "keys": ("SUMMARY",), "kind": "string"},
+        {"name": "quarter", "path": ("game_state", "quarter"), "keys": ("QTR",), "kind": "int"},
+        {"name": "series", "path": ("game_state", "series"), "keys": ("SERIES",), "kind": "int"},
+        {"name": "down", "path": ("game_state", "down"), "keys": ("DN",), "kind": "int"},
+        {"name": "distance", "path": ("game_state", "distance"), "keys": ("DIST",), "kind": "int"},
+        {"name": "yard_line", "path": ("game_state", "yard_line"), "keys": ("YARD LN",), "kind": "string"},
+        {"name": "hash", "path": ("game_state", "hash"), "keys": ("HASH",), "kind": "string"},
+        {"name": "situation", "path": ("game_state", "situation"), "keys": ("SITUATION",), "kind": "string"},
+        {"name": "odk", "path": ("hudl_fields", "odk"), "keys": ("ODK",), "kind": "string"},
+        {"name": "formation", "path": ("offense", "formation"), "keys": ("FORMATION", "OFF FORM"), "kind": "string"},
+        {"name": "personnel", "path": ("offense", "personnel"), "keys": ("PERSONNEL",), "kind": "string"},
+        {"name": "motion", "path": ("offense", "motion"), "keys": ("MOTION",), "kind": "string"},
+        {"name": "play_direction", "path": ("offense", "play_direction"), "keys": ("PLAY DIR",), "kind": "string"},
+        {"name": "front", "path": ("defense", "front"), "keys": ("FRONT", "DEF FRONT"), "kind": "string"},
+        {"name": "coverage", "path": ("defense", "coverage"), "keys": ("COVERAGE",), "kind": "string"},
+        {"name": "blitz", "path": ("defense", "blitz"), "keys": ("BLITZ",), "kind": "bool"},
+        {"name": "pressure", "path": ("defense", "pressure"), "keys": ("PRESSURE",), "kind": "bool"},
+        {"name": "result", "path": ("outcome", "result"), "keys": ("RESULT",), "kind": "string"},
+        {"name": "yards_gained", "path": ("outcome", "yards_gained"), "keys": ("YDS", "GN/LS"), "kind": "int"},
+        {"name": "field_zone", "path": ("outcome", "field_zone"), "keys": ("FLD ZN",), "kind": "string"},
+        {"name": "hudl_off_form", "path": ("hudl_fields", "off_form"), "keys": ("OFF FORM", "FORMATION"), "kind": "string"},
+        {"name": "hudl_def_front", "path": ("hudl_fields", "def_front"), "keys": ("DEF FRONT", "FRONT"), "kind": "string"},
+        {"name": "hudl_gain_loss", "path": ("hudl_fields", "gain_loss"), "keys": ("GN/LS", "YDS"), "kind": "int"},
+        {"name": "hudl_motion_dir", "path": ("hudl_fields", "motion_dir"), "keys": ("MOTION DIR",), "kind": "string"},
+        {"name": "hudl_result_label", "path": ("hudl_fields", "result_label"), "keys": ("RESULT",), "kind": "string"},
+    ]
+
+    comparison_fields = {}
+    matched_count = 0
+    conflict_count = 0
+    fallback_count = 0
+
+    for spec in field_specs:
+        analysis_value = _get_nested(result, spec["path"])
+        breakdown_raw = _first_breakdown_value(breakdown_payload, spec["keys"])
+        breakdown_value = _coerce_value(breakdown_raw, spec["kind"])
+        analysis_missing = _is_missing_value(analysis_value)
+        used_fallback = analysis_missing and breakdown_value is not None
+
+        if used_fallback:
+            _set_nested(result, spec["path"], breakdown_value)
+
+        resolved_value = _get_nested(result, spec["path"])
+        analysis_normalized = _normalize_for_compare(analysis_value, spec["kind"])
+        breakdown_normalized = _normalize_for_compare(breakdown_value, spec["kind"])
+        matches = (
+            analysis_normalized is not None
+            and breakdown_normalized is not None
+            and analysis_normalized == breakdown_normalized
+        )
+        conflict = (
+            analysis_normalized is not None
+            and breakdown_normalized is not None
+            and analysis_normalized != breakdown_normalized
+        )
+
+        if matches:
+            matched_count += 1
+        if conflict:
+            conflict_count += 1
+        if used_fallback:
+            fallback_count += 1
+
+        comparison_fields[spec["name"]] = {
+            "analysis": analysis_value,
+            "breakdown": breakdown_value,
+            "resolved": resolved_value,
+            "matches": matches,
+            "conflict": conflict,
+            "used_fallback": used_fallback,
+        }
+
+    result["breakdown_comparison"] = {
+        "fields": comparison_fields,
+        "summary": {
+            "matched_count": matched_count,
+            "conflict_count": conflict_count,
+            "fallback_count": fallback_count,
+        },
+    }
+    return result
+
+
 def analyze_clip_with_gemini(config, clip, analysis_run, breakdown_payload):
     clip_path = Path(clip.storage_path)
     if not clip_path.exists():
@@ -178,6 +404,7 @@ def analyze_clip_with_gemini(config, clip, analysis_run, breakdown_payload):
 
     text = response.text or "{}"
     result = json.loads(text)
+    result = _apply_breakdown_fallbacks(result, breakdown_payload)
     return {
         "provider": "gemini",
         "model_name": model_name,

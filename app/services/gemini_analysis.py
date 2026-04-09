@@ -151,7 +151,7 @@ Field guidance:
 - game_state.distance: yards to gain as integer, or null.
 - game_state.yard_line: preserve the broadcast/charting style if visible, for example "-15", "45", "Own 25", or null.
 - game_state.hash: use "L", "M", "R" when visible; otherwise null.
-- side_of_ball: "Offense", "Defense", or "Special Teams".
+- side_of_ball: "Offense", "Defense", or "Special Teams" from the perspective of the focus team, not simply the team currently holding the ball.
 - play_type: short coach-friendly tag such as "Run", "Pass", "Punt", "Kickoff Return", "Punt Return", "Field Goal".
 - outcome.result: concise football result such as "Completion", "Incomplete", "Touchdown", "First Down", "Short Gain", "Tackle For Loss", "Sack", "Kickoff Return".
 - outcome.yards_gained: signed integer when visible or directly inferable, else null.
@@ -336,7 +336,7 @@ def _apply_breakdown_fallbacks(result, breakdown_payload, analysis_run=None):
     breakdown_payload = breakdown_payload or {}
     field_specs = [
         {"name": "play_type", "path": ("play_type",), "keys": ("PLAY TYPE",), "kind": "string"},
-        {"name": "side_of_ball", "path": ("side_of_ball",), "keys": ("SIDE",), "kind": "string"},
+        {"name": "side_of_ball", "path": ("side_of_ball",), "keys": ("SIDE",), "kind": "string", "prefer_breakdown_on_conflict": True},
         {"name": "summary", "path": ("summary",), "keys": ("SUMMARY",), "kind": "string"},
         {"name": "quarter", "path": ("game_state", "quarter"), "keys": ("QTR",), "kind": "int"},
         {"name": "series", "path": ("game_state", "series"), "keys": ("SERIES",), "kind": "int"},
@@ -345,7 +345,7 @@ def _apply_breakdown_fallbacks(result, breakdown_payload, analysis_run=None):
         {"name": "yard_line", "path": ("game_state", "yard_line"), "keys": ("YARD LN",), "kind": "string"},
         {"name": "hash", "path": ("game_state", "hash"), "keys": ("HASH",), "kind": "string"},
         {"name": "situation", "path": ("game_state", "situation"), "keys": ("SITUATION",), "kind": "string"},
-        {"name": "odk", "path": ("hudl_fields", "odk"), "keys": ("ODK",), "kind": "string"},
+        {"name": "odk", "path": ("hudl_fields", "odk"), "keys": ("ODK",), "kind": "string", "prefer_breakdown_on_conflict": True},
         {"name": "formation", "path": ("offense", "formation"), "keys": ("FORMATION", "OFF FORM"), "kind": "string"},
         {"name": "personnel", "path": ("offense", "personnel"), "keys": ("PERSONNEL",), "kind": "string"},
         {"name": "motion", "path": ("offense", "motion"), "keys": ("MOTION",), "kind": "string"},
@@ -378,7 +378,6 @@ def _apply_breakdown_fallbacks(result, breakdown_payload, analysis_run=None):
         if used_fallback:
             _set_nested(result, spec["path"], breakdown_value)
 
-        resolved_value = _get_nested(result, spec["path"])
         analysis_normalized = _normalize_for_compare(analysis_value, spec["kind"])
         breakdown_normalized = _normalize_for_compare(breakdown_value, spec["kind"])
         matches = (
@@ -391,6 +390,10 @@ def _apply_breakdown_fallbacks(result, breakdown_payload, analysis_run=None):
             and breakdown_normalized is not None
             and analysis_normalized != breakdown_normalized
         )
+        prefer_breakdown = spec.get("prefer_breakdown_on_conflict") and breakdown_value is not None
+        if conflict and prefer_breakdown:
+            _set_nested(result, spec["path"], breakdown_value)
+        resolved_value = _get_nested(result, spec["path"])
 
         if matches:
             matched_count += 1

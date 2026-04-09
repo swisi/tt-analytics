@@ -31,8 +31,8 @@ Ein Coach kann vor einem Spiel mehrere gegnerische Spiele hochladen, diese in ei
 - zentrale Authentifizierung ueber `tt-auth`
 - eigene Postgres-Datenbank
 - Videos nicht in Postgres speichern, sondern in Object Storage
-- AI-Zugriff zuerst ueber Gemini
-- optionaler Provider-Layer ueber LiteLLM
+- AI-Zugriff im aktuellen MVP direkt ueber Gemini
+- LiteLLM bleibt als naechste Abstraktionsschicht geplant
 - asynchrone Verarbeitung statt synchroner Monster-Requests
 
 ## Status
@@ -40,7 +40,10 @@ Ein Coach kann vor einem Spiel mehrere gegnerische Spiele hochladen, diese in ei
 Der aktuelle Stand umfasst:
 
 - Produkt- und Architekturplanung fuer den MVP
-- analysierte Hudl-Referenzen
-- erstes Flask- und Jinja2-Grundgeruest
-- SSO-Basis mit `tt-auth`
+- analysierte Hudl-Referenzen und Breakdown-Import
+- Flask- und Jinja2-Webanwendung mit SSO ueber `tt-auth`
 - Postgres-faehige Service-Konfiguration fuer lokalen Docker-Betrieb
+- Team-, Spiel-, Run- und Report-Verwaltung
+- Clip-Upload und Gemini-basierte Play-Analyse mit Retry-Logik
+- mehrstufige Report-Synthese mit Executive Overview, Tendency Tables und Full Report
+- HTML-basierter PDF-Export, damit Web- und PDF-Darstellung dieselbe Report-Struktur nutzen

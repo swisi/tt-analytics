@@ -62,6 +62,13 @@ ANALYSIS_SCHEMA = {
 }
 
 
+def _get_client_and_model(config):
+    api_key = (config.get("GEMINI_API_KEY") or "").strip()
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY ist nicht gesetzt.")
+    return genai.Client(api_key=api_key), config.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+
 def _build_prompt(clip, analysis_run, breakdown_payload):
     game = analysis_run.game
     focus_team = analysis_run.focus_team.name
@@ -112,16 +119,29 @@ def _parse_retry_seconds(error_text, config):
     return max(1.0, base_wait + buffer_seconds)
 
 
-def analyze_clip_with_gemini(config, clip, analysis_run, breakdown_payload):
-    api_key = (config.get("GEMINI_API_KEY") or "").strip()
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY ist nicht gesetzt.")
+def _generate_with_retry(client, model_name, contents, config, generation_config=None):
+    max_retries = int(config.get("GEMINI_MAX_RETRIES", 8))
+    for attempt in range(max_retries + 1):
+        try:
+            return client.models.generate_content(
+                model=model_name,
+                contents=contents,
+                config=generation_config,
+            )
+        except Exception as exc:
+            error_text = str(exc)
+            if attempt >= max_retries or not _is_retryable_rate_limit(error_text):
+                raise
+            time.sleep(_parse_retry_seconds(error_text, config))
+    raise RuntimeError("Gemini-Generierung konnte nicht abgeschlossen werden.")
 
+
+def analyze_clip_with_gemini(config, clip, analysis_run, breakdown_payload):
     clip_path = Path(clip.storage_path)
     if not clip_path.exists():
         raise RuntimeError("Clip-Datei wurde im Upload-Speicher nicht gefunden.")
 
-    client = genai.Client(api_key=api_key)
+    client, model_name = _get_client_and_model(config)
     uploaded = client.files.upload(file=str(clip_path))
 
     deadline = time.time() + int(config.get("GEMINI_FILE_POLL_TIMEOUT_SECONDS", 300))
@@ -136,32 +156,168 @@ def analyze_clip_with_gemini(config, clip, analysis_run, breakdown_payload):
         uploaded = client.files.get(name=uploaded.name)
 
     prompt = _build_prompt(clip, analysis_run, breakdown_payload)
-    max_retries = int(config.get("GEMINI_MAX_RETRIES", 8))
-    response = None
-
-    for attempt in range(max_retries + 1):
-        try:
-            response = client.models.generate_content(
-                model=config.get("GEMINI_MODEL", "gemini-2.5-flash"),
-                contents=[uploaded, prompt],
-                config={
-                    "response_mime_type": "application/json",
-                    "response_json_schema": ANALYSIS_SCHEMA,
-                },
-            )
-            break
-        except Exception as exc:
-            error_text = str(exc)
-            if attempt >= max_retries or not _is_retryable_rate_limit(error_text):
-                raise
-            time.sleep(_parse_retry_seconds(error_text, config))
+    response = _generate_with_retry(
+        client,
+        model_name,
+        [uploaded, prompt],
+        config,
+        generation_config={
+            "response_mime_type": "application/json",
+            "response_json_schema": ANALYSIS_SCHEMA,
+        },
+    )
 
     text = response.text or "{}"
     result = json.loads(text)
     return {
         "provider": "gemini",
-        "model_name": config.get("GEMINI_MODEL", "gemini-2.5-flash"),
+        "model_name": model_name,
         "raw_text": text,
         "result_json": result,
         "confidence": result.get("confidence"),
+    }
+
+
+def synthesize_report_with_gemini(config, report, analyses_payload):
+    client, model_name = _get_client_and_model(config)
+
+    runs_text = "\n".join(
+        f"- Run {entry.analysis_run.id}: {entry.analysis_run.game.label} | "
+        f"Fokus {entry.analysis_run.focus_team.name} | "
+        f"Modus {entry.analysis_run.analysis_mode} | "
+        f"Clips {entry.analysis_run.processed_clips}/{entry.analysis_run.total_clips}"
+        for entry in report.runs
+    )
+
+    def build_section_prompt(title, instructions, section_payload):
+        payload_text = json.dumps(section_payload, ensure_ascii=True)
+        return f"""
+You are an expert American Football scouting analyst.
+
+Section:
+- {title}
+
+Report title:
+- {report.title}
+
+Focus team:
+- {report.focus_team.name}
+
+Included analysis runs:
+{runs_text}
+
+Task:
+- Write this report section in German.
+- Use Markdown headings and bullet points.
+- Keep it practical for coaches.
+- Only state tendencies that are supported by the provided data.
+- If evidence is thin or incomplete, say so clearly.
+
+Section instructions:
+{instructions}
+
+Structured data:
+{payload_text}
+""".strip()
+
+    offense_prompt = build_section_prompt(
+        "Offense Summary",
+        """
+- Focus on offensive tendencies of the focus team.
+- Highlight formations, motions, run/pass indicators, direction, concepts and recurring outcomes.
+- End with 3-5 actionable coaching takeaways for defending this offense.
+""".strip(),
+        {
+            "completed_play_count": analyses_payload["completed_play_count"],
+            "top_play_types": analyses_payload["top_play_types"],
+            "top_formations": analyses_payload["top_formations"],
+            "top_results": analyses_payload["top_results"],
+            "offensive_samples": analyses_payload["offensive_samples"],
+        },
+    )
+    defense_prompt = build_section_prompt(
+        "Defense Summary",
+        """
+- Focus on defensive tendencies of the focus team.
+- Highlight fronts, coverage, blitz, pressure, alignment patterns and recurring reactions.
+- End with 3-5 actionable coaching takeaways for attacking this defense.
+""".strip(),
+        {
+            "completed_play_count": analyses_payload["completed_play_count"],
+            "top_coverages": analyses_payload["top_coverages"],
+            "top_results": analyses_payload["top_results"],
+            "defensive_samples": analyses_payload["defensive_samples"],
+        },
+    )
+    situational_prompt = build_section_prompt(
+        "Situational Summary",
+        """
+- Focus on situational tendencies.
+- Analyze down, distance, field position, hash, special or notable situations if available.
+- Identify any specific tendencies that appear in those situations.
+- End with 3-5 situation-based coaching points.
+""".strip(),
+        {
+            "completed_play_count": analyses_payload["completed_play_count"],
+            "top_downs": analyses_payload["top_downs"],
+            "top_distances": analyses_payload["top_distances"],
+            "top_hashes": analyses_payload["top_hashes"],
+            "top_field_positions": analyses_payload["top_field_positions"],
+            "situational_samples": analyses_payload["situational_samples"],
+        },
+    )
+
+    offense_text = (_generate_with_retry(client, model_name, offense_prompt, config).text or "").strip()
+    defense_text = (_generate_with_retry(client, model_name, defense_prompt, config).text or "").strip()
+    situational_text = (_generate_with_retry(client, model_name, situational_prompt, config).text or "").strip()
+
+    final_prompt = f"""
+You are an expert American Football scouting analyst preparing the final coach-facing scouting report.
+
+Report title:
+- {report.title}
+
+Focus team:
+- {report.focus_team.name}
+
+Included analysis runs:
+{runs_text}
+
+Use the following three prepared section summaries and merge them into one cohesive German scouting report.
+
+Requirements:
+- Write in German.
+- Use Markdown headings and bullet points.
+- Keep the tone compact, clear and coach-oriented.
+- Include these sections:
+  1. Executive Summary
+  2. Offense
+  3. Defense
+  4. Situational Tendencies
+  5. Top Coaching Points
+  6. Data Gaps / Confidence
+- Do not invent facts beyond the summaries.
+
+Offense Summary:
+{offense_text}
+
+Defense Summary:
+{defense_text}
+
+Situational Summary:
+{situational_text}
+""".strip()
+
+    text = (_generate_with_retry(client, model_name, final_prompt, config).text or "").strip()
+    if not text:
+        raise RuntimeError("Gemini hat keinen Report-Text zurückgegeben.")
+    return {
+        "provider": "gemini",
+        "model_name": model_name,
+        "report_text": text,
+        "sections": {
+            "offense": offense_text,
+            "defense": defense_text,
+            "situational": situational_text,
+        },
     }

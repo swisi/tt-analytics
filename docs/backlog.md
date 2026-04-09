@@ -31,64 +31,64 @@ Arbeitsreihenfolge:
 
 ## Phase 1: MVP-Plattform
 
-- [ ] Basisprojekt `tt-analytics` initialisieren
-- [ ] SSO mit `tt-auth` integrieren
-- [ ] Postgres anbinden
-- [ ] Dockerfile und Compose-Integration vorbereiten
-- [ ] Healthcheck und Grundlayout bauen
+- [x] Basisprojekt `tt-analytics` initialisieren
+- [x] SSO mit `tt-auth` integrieren
+- [x] Postgres anbinden
+- [x] Dockerfile und Compose-Integration vorbereiten
+- [x] Healthcheck und Grundlayout bauen
 - [ ] LiteLLM-Service lokal im Stack anbinden
-- [ ] Basis-Konfiguration fuer Provider-Keys vorbereiten
+- [x] Basis-Konfiguration fuer Provider-Keys vorbereiten
 
 ## Phase 2: Gegner- und Spielverwaltung
 
-- [ ] Gegner anlegen, bearbeiten, archivieren
-- [ ] Spiele einem Gegner zuordnen
-- [ ] Metadaten fuer Spiel erfassen
-- [ ] Upload-Workflow fuer Videos oder Clips
+- [x] Gegner anlegen, bearbeiten, archivieren
+- [x] Spiele einem Gegner zuordnen
+- [x] Metadaten fuer Spiel erfassen
+- [x] Upload-Workflow fuer Videos oder Clips
 - [ ] Import des minimalen Hudl-Formats
-- [ ] Import des erweiterten Hudl-Formats
+- [x] Import des erweiterten Hudl-Formats
 - [ ] Export in minimales Gegnerformat
 
 ## Phase 3: Clip-Ingestion und Jobsystem
 
 - [ ] Upload in Object Storage
-- [ ] Clip-Entitaet mit Statusmodell
+- [x] Clip-Entitaet mit Statusmodell
 - [ ] Analyse-Queue aufbauen
-- [ ] Retry- und Fehlerbehandlung
+- [x] Retry- und Fehlerbehandlung
 - [ ] Resume nach Neustart
 - [ ] Batch-Run ueber Nacht unterstuetzen
-- [ ] Fortschritt je Spiel und je Gegnerlauf anzeigen
+- [x] Fortschritt je Spiel und je Gegnerlauf anzeigen
 - [ ] klare Fehlercodes fuer einzelne Clips und Runs
-- [ ] Rate-Limit-Steuerung fuer Provider-Jobs
+- [x] Rate-Limit-Steuerung fuer Provider-Jobs
 
 ## Phase 4: AI-Provider und Analyse
 
 - [ ] LiteLLM-Client in `tt-analytics` einbauen
 - [ ] Gemini in LiteLLM konfigurieren
-- [ ] Datei-Upload oder Files API anbinden
-- [ ] strukturierten JSON-Output erzwingen
-- [ ] Ergebnisvalidierung und Speicherung
+- [x] Datei-Upload oder Files API anbinden
+- [x] strukturierten JSON-Output erzwingen
+- [x] Ergebnisvalidierung und Speicherung
 - [ ] Prompt-Versionierung einbauen
-- [ ] Modell- und Provider-Metadaten pro Run speichern
+- [x] Modell- und Provider-Metadaten pro Run speichern
 
 ## Phase 5: Review und Qualitaet
 
 - [ ] Einzelansicht fuer Clip und Analyse
 - [ ] manuelle Markierung fehlerhafter Analysen
-- [ ] Re-Run fuer einzelne Clips
+- [x] Re-Run fuer einzelne Clips
 - [ ] Vergleich verschiedener Prompt- oder Modellversionen
 - [ ] Diff zwischen AI-Ergebnis und Review-Korrektur
 - [ ] Confidence- und Quality-Hinweise im UI
 
 ## Phase 6: Report-Synthese
 
-- [ ] Spielreport aus mehreren Clips
+- [x] Spielreport aus mehreren Clips
 - [ ] Multi-Game-Scouting Report pro Gegner
-- [ ] Standard-Abschnitte fuer Coaches
-- [ ] Export als PDF oder HTML
+- [x] Standard-Abschnitte fuer Coaches
+- [x] Export als PDF oder HTML
 - [ ] verlinkte Beispielclips im Report
 - [ ] Report-Generierung aus mehreren Spielen eines Gegners
-- [ ] Report-JSON und HTML strikt trennen
+- [x] Report-JSON und HTML strikt trennen
 
 ## Phase 6a: Self-Scouting und Auto-Tagging
 
@@ -121,14 +121,14 @@ Arbeitsreihenfolge:
 
 Fuer den ersten nutzbaren Wurf wuerde ich nur das hier bauen:
 
-- [ ] Login ueber `tt-auth`
-- [ ] Gegner anlegen
-- [ ] ein oder mehrere Spiele pro Gegner anlegen
-- [ ] Clips hochladen
-- [ ] Import des erweiterten Mindestschemas aus Hudl
+- [x] Login ueber `tt-auth`
+- [x] Gegner anlegen
+- [x] ein oder mehrere Spiele pro Gegner anlegen
+- [x] Clips hochladen
+- [x] Import des erweiterten Mindestschemas aus Hudl
 - [ ] pro Clip Analyse ueber `LiteLLM -> Gemini` als JSON speichern
-- [ ] Report aus den JSONs erzeugen
-- [ ] einfache Webansicht des Reports
+- [x] Report aus den JSONs erzeugen
+- [x] einfache Webansicht des Reports
 - [ ] asynchroner Lauf mit Queue und Statusanzeige
 - [ ] Export in minimales Gegnerformat
 
@@ -136,7 +136,7 @@ Fuer den ersten nutzbaren Wurf wuerde ich nur das hier bauen:
 
 - [ ] weitere Provider hinter LiteLLM
 - [ ] RAG mit Playbooks
-- [ ] PDF-Export
+- [x] PDF-Export
 - [ ] bessere Metriken und Dashboards
 - [ ] Modellvergleich
 - [ ] Review-Workflow mit Freigabe

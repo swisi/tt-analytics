@@ -1,18 +1,21 @@
+import re
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 import threading
 from uuid import uuid4
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+import markdown as md
+from flask import Blueprint, current_app, flash, make_response, redirect, render_template, request, session, url_for
 from sqlalchemy import or_
 from sqlalchemy.orm.exc import ObjectDeletedError
 from werkzeug.utils import secure_filename
+from weasyprint import HTML
 
 from ..extensions import db
 from ..models import AnalysisRun, Clip, ClipAnalysis, ClipMetadata, Game, Report, ReportRun, Season, Team
 from ..services.breakdown_import import parse_xlsx_rows
-from ..services.gemini_analysis import analyze_clip_with_gemini
+from ..services.gemini_analysis import analyze_clip_with_gemini, synthesize_report_with_gemini
 
 bp = Blueprint("main", __name__)
 
@@ -23,12 +26,197 @@ def require_login(endpoint="main.index"):
     return None
 
 
+def _normalize_bucket_value(value, bucket_kind):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+
+    lowered = raw.casefold()
+    if lowered in {"null", "none", "n/a", "na", "unknown", "unk", "-", "tbd"}:
+        return None
+
+    aliases = {
+        "play_type": {
+            "run": "Run",
+            "pass": "Pass",
+            "punt": "Punt",
+            "kickoff return": "Kickoff Return",
+            "kickoff": "Kickoff",
+            "field goal": "Field Goal",
+            "extra point": "Extra Point",
+        },
+        "side_of_ball": {
+            "offense": "Offense",
+            "offensive": "Offense",
+            "defense": "Defense",
+            "defensive": "Defense",
+            "special teams": "Special Teams",
+            "specialteam": "Special Teams",
+        },
+        "formation": {
+            "shotgun": "Shotgun",
+            "gun": "Shotgun",
+            "under center": "Under Center",
+            "under-centre": "Under Center",
+            "i formation": "I-Formation",
+            "i-formation": "I-Formation",
+            "pro formation": "Pro Formation",
+            "pro-style": "Pro Formation",
+            "empty": "Empty",
+            "trips": "Trips",
+        },
+        "front": {
+            "4-3": "4-3",
+            "4 3": "4-3",
+            "43": "4-3",
+            "4-man front": "4-Man Front",
+            "4 man front": "4-Man Front",
+            "four-man front": "4-Man Front",
+            "3-4": "3-4",
+            "3 4": "3-4",
+            "34": "3-4",
+            "4-2-5": "4-2-5",
+            "4 2 5": "4-2-5",
+            "425": "4-2-5",
+            "nickel": "Nickel",
+            "bear": "Bear",
+            "odd": "Odd Front",
+            "even": "Even Front",
+        },
+        "coverage": {
+            "zone": "Zone",
+            "man": "Man",
+            "two-high safety": "Two-High Safety",
+            "2 high": "Two-High Safety",
+            "two high": "Two-High Safety",
+            "cover 2": "Cover 2",
+            "cover 3": "Cover 3",
+            "cover 4": "Cover 4",
+            "quarters": "Quarters",
+        },
+        "personnel": {
+            "11 personnel": "11 Personnel",
+            "12 personnel": "12 Personnel",
+            "10 personnel": "10 Personnel",
+            "21 personnel": "21 Personnel",
+            "22 personnel": "22 Personnel",
+            "13 personnel": "13 Personnel",
+            "20 personnel": "20 Personnel",
+            "empty": "Empty",
+        },
+        "result": {
+            "short gain": "Short Gain",
+            "positive gain": "Positive Gain",
+            "big gain": "Big Gain",
+            "touchdown": "Touchdown",
+            "tackle for loss": "Tackle For Loss",
+            "no gain": "No Gain",
+            "incomplete": "Incomplete",
+            "interception": "Interception",
+            "sack": "Sack",
+            "fumble": "Fumble",
+        },
+        "blitz": {
+            "true": "Blitz",
+            "false": "No Blitz",
+            "yes": "Blitz",
+            "no": "No Blitz",
+        },
+        "pressure": {
+            "true": "Pressure",
+            "false": "No Pressure",
+            "yes": "Pressure",
+            "no": "No Pressure",
+        },
+    }
+
+    if bucket_kind in aliases and lowered in aliases[bucket_kind]:
+        return aliases[bucket_kind][lowered]
+
+    if bucket_kind in {"play_type", "side_of_ball", "coverage", "result", "formation", "front", "personnel"}:
+        return raw.title()
+
+    return raw[0].upper() + raw[1:] if raw else raw
+
+
+def _count_bucket(counter, value, bucket_kind):
+    normalized = _normalize_bucket_value(value, bucket_kind)
+    if normalized:
+        counter[normalized] += 1
+
+
+def _normalize_report_text(text):
+    if not text:
+        return ""
+
+    normalized = text.replace("\r\n", "\n").strip()
+    lines = []
+    for index, raw_line in enumerate(normalized.splitlines()):
+        line = raw_line.strip()
+        if not line:
+            lines.append("")
+            continue
+
+        if index == 0 and re.match(r"^#?\s*Scouting\s+", line, flags=re.IGNORECASE):
+            continue
+
+        line = re.sub(r"^##\s*\d+\.\s*", "## ", line)
+        line = re.sub(r"^\d+\.\s+(Executive Summary|Offense|Defense|Situational Tendencies|Top Coaching Points|Data Gaps / Confidence)$", r"## \1", line, flags=re.IGNORECASE)
+        line = re.sub(r"^Analysebasis:\s*", "**Analysebasis:** ", line, flags=re.IGNORECASE)
+        line = re.sub(r"^(Allgemeine Offensive Tendenzen|Formationen & Personnel|Blitz & Pressure|Situative Tendenzen)$", r"### \1", line)
+        if line == "---":
+            lines.append("")
+            continue
+        lines.append(line)
+
+    return "\n".join(lines).strip()
+
+
+def _strip_inline_markdown(text):
+    clean = text or ""
+    clean = re.sub(r"\*\*(.*?)\*\*", r"\1", clean)
+    clean = re.sub(r"\*(.*?)\*", r"\1", clean)
+    clean = re.sub(r"`(.*?)`", r"\1", clean)
+    clean = re.sub(r"\[(.*?)\]\(.*?\)", r"\1", clean)
+    return clean.strip()
+
+
+def _split_report_sections(text):
+    normalized = _normalize_report_text(text)
+    sections = []
+    current_title = None
+    current_lines = []
+
+    for raw_line in normalized.splitlines():
+        line = raw_line.rstrip()
+        if line.startswith("## "):
+            if current_title:
+                sections.append((current_title, "\n".join(current_lines).strip()))
+            current_title = _strip_inline_markdown(line[3:])
+            current_lines = []
+            continue
+        current_lines.append(line)
+
+    if current_title:
+        sections.append((current_title, "\n".join(current_lines).strip()))
+
+    return sections
+
+
 def _collect_report_metrics(report):
     play_types = Counter()
     side_of_ball = Counter()
     formations = Counter()
+    personnel = Counter()
+    fronts = Counter()
     coverages = Counter()
+    blitz = Counter()
+    pressure = Counter()
     results = Counter()
+    downs = Counter()
+    distances = Counter()
+    hashes = Counter()
+    field_positions = Counter()
     notes = []
     analyzed_clips = 0
 
@@ -40,21 +228,35 @@ def _collect_report_metrics(report):
             payload = analysis.result_json
             analyzed_clips += 1
 
-            if payload.get("play_type"):
-                play_types[payload["play_type"]] += 1
-            if payload.get("side_of_ball"):
-                side_of_ball[payload["side_of_ball"]] += 1
+            _count_bucket(play_types, payload.get("play_type"), "play_type")
+            _count_bucket(side_of_ball, payload.get("side_of_ball"), "side_of_ball")
 
             offense = payload.get("offense") or {}
             defense = payload.get("defense") or {}
             outcome = payload.get("outcome") or {}
+            breakdown_payload = {}
+            if analysis.clip:
+                breakdown = next(
+                    (item for item in analysis.clip.metadata_entries if item.source_kind == "breakdown_excel"),
+                    None,
+                )
+                breakdown_payload = breakdown.payload_json if breakdown else {}
 
-            if offense.get("formation"):
-                formations[offense["formation"]] += 1
-            if defense.get("coverage"):
-                coverages[defense["coverage"]] += 1
-            if outcome.get("result"):
-                results[outcome["result"]] += 1
+            _count_bucket(formations, offense.get("formation"), "formation")
+            _count_bucket(personnel, offense.get("personnel"), "personnel")
+            _count_bucket(fronts, defense.get("front"), "front")
+            _count_bucket(coverages, defense.get("coverage"), "coverage")
+            _count_bucket(blitz, defense.get("blitz"), "blitz")
+            _count_bucket(pressure, defense.get("pressure"), "pressure")
+            _count_bucket(results, outcome.get("result"), "result")
+            if breakdown_payload.get("DN"):
+                _count_bucket(downs, breakdown_payload.get("DN"), "down")
+            if breakdown_payload.get("DIST"):
+                _count_bucket(distances, breakdown_payload.get("DIST"), "distance")
+            if breakdown_payload.get("HASH"):
+                _count_bucket(hashes, breakdown_payload.get("HASH"), "hash")
+            if breakdown_payload.get("YARD LN"):
+                _count_bucket(field_positions, breakdown_payload.get("YARD LN"), "yard_line")
 
             for note in payload.get("notes") or []:
                 note_text = (note or "").strip()
@@ -66,9 +268,219 @@ def _collect_report_metrics(report):
         "top_play_types": play_types.most_common(5),
         "top_sides": side_of_ball.most_common(5),
         "top_formations": formations.most_common(5),
+        "top_personnel": personnel.most_common(5),
+        "top_fronts": fronts.most_common(5),
         "top_coverages": coverages.most_common(5),
+        "top_blitz": blitz.most_common(5),
+        "top_pressure": pressure.most_common(5),
         "top_results": results.most_common(5),
+        "top_downs": downs.most_common(5),
+        "top_distances": distances.most_common(5),
+        "top_hashes": hashes.most_common(5),
+        "top_field_positions": field_positions.most_common(5),
         "notes": notes[:12],
+    }
+
+
+def _render_report_markdown(text):
+    if not text:
+        return ""
+    text = _normalize_report_text(text)
+    return md.markdown(
+        text,
+        extensions=["extra", "sane_lists", "nl2br"],
+    )
+
+
+def _top_metric_label(rows, fallback="Keine Daten"):
+    if not rows:
+        return fallback
+    return str(rows[0][0])
+
+
+def _build_report_view_model(report, metrics):
+    sections = _split_report_sections(report.summary or "")
+    section_map = {title: body for title, body in sections}
+    executive_title = "Executive Summary"
+    executive_body = section_map.get(executive_title, report.summary or "")
+    detail_sections = [
+        {
+            "title": title,
+            "body": body,
+            "html": _render_report_markdown(body),
+        }
+        for title, body in sections
+        if title != executive_title and body.strip()
+    ]
+    executive_html = _render_report_markdown(executive_body)
+    at_a_glance = [
+        {
+            "title": "Offense",
+            "value": _top_metric_label(metrics["top_play_types"]),
+            "detail": f"Formation: {_top_metric_label(metrics['top_formations'])}",
+        },
+        {
+            "title": "Defense",
+            "value": _top_metric_label(metrics["top_fronts"]),
+            "detail": f"Coverage: {_top_metric_label(metrics['top_coverages'])}",
+        },
+        {
+            "title": "Situation",
+            "value": _top_metric_label(metrics["top_results"]),
+            "detail": f"Top Down: {_top_metric_label(metrics['top_downs'])}",
+        },
+    ]
+    return {
+        "executive_title": executive_title,
+        "executive_html": executive_html,
+        "detail_sections": detail_sections,
+        "at_a_glance": at_a_glance,
+    }
+
+
+def _build_table_sections(metrics):
+    return [
+        {"title": "Play Types", "rows": metrics["top_play_types"], "column_title": "Play Type"},
+        {"title": "Sides of Ball", "rows": metrics["top_sides"], "column_title": "Side"},
+        {"title": "Formations", "rows": metrics["top_formations"], "column_title": "Formation"},
+        {"title": "Personnel", "rows": metrics["top_personnel"], "column_title": "Personnel"},
+        {"title": "Fronts", "rows": metrics["top_fronts"], "column_title": "Front"},
+        {"title": "Coverages", "rows": metrics["top_coverages"], "column_title": "Coverage"},
+        {"title": "Blitz Tendencies", "rows": metrics["top_blitz"], "column_title": "Blitz"},
+        {"title": "Pressure Tendencies", "rows": metrics["top_pressure"], "column_title": "Pressure"},
+        {"title": "Outcomes", "rows": metrics["top_results"], "column_title": "Outcome"},
+        {"title": "Down Tendencies", "rows": metrics["top_downs"], "column_title": "Down"},
+        {"title": "Distance Tendencies", "rows": metrics["top_distances"], "column_title": "Distance"},
+        {"title": "Hash Tendencies", "rows": metrics["top_hashes"], "column_title": "Hash"},
+        {"title": "Field Position", "rows": metrics["top_field_positions"], "column_title": "Yard Line"},
+    ]
+
+
+def _build_pdf_response(report, metrics):
+    view_model = _build_report_view_model(report, metrics)
+    html = render_template(
+        "report_pdf.html",
+        report=report,
+        metrics=metrics,
+        view_model=view_model,
+        table_sections=_build_table_sections(metrics),
+        generated_at=datetime.now(),
+    )
+    pdf_bytes = HTML(string=html, base_url=str(Path(current_app.root_path).parent)).write_pdf()
+    safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", (report.title or f"report_{report.id}").strip()).strip("_")
+    filename = f"{safe_title or f'report_{report.id}'}.pdf"
+
+    response = make_response(pdf_bytes)
+    response.headers["Content-Type"] = "application/pdf"
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+def _build_report_payload(report):
+    completed_play_count = 0
+    play_types = Counter()
+    sides = Counter()
+    formations = Counter()
+    personnel = Counter()
+    fronts = Counter()
+    coverages = Counter()
+    blitz = Counter()
+    pressure = Counter()
+    results = Counter()
+    offensive_samples = []
+    defensive_samples = []
+    situational_samples = []
+    down_counts = Counter()
+    distance_buckets = Counter()
+    hash_counts = Counter()
+    field_position_counts = Counter()
+
+    for entry in report.runs:
+        run = entry.analysis_run
+        for analysis in run.clip_analyses:
+            if analysis.status != "completed" or not analysis.result_json:
+                continue
+            completed_play_count += 1
+
+            payload = analysis.result_json
+            _count_bucket(play_types, payload.get("play_type"), "play_type")
+            _count_bucket(sides, payload.get("side_of_ball"), "side_of_ball")
+
+            offense = payload.get("offense") or {}
+            defense = payload.get("defense") or {}
+            outcome = payload.get("outcome") or {}
+            breakdown_payload = {}
+            if analysis.clip:
+                breakdown = next(
+                    (item for item in analysis.clip.metadata_entries if item.source_kind == "breakdown_excel"),
+                    None,
+                )
+                breakdown_payload = breakdown.payload_json if breakdown else {}
+
+            _count_bucket(formations, offense.get("formation"), "formation")
+            _count_bucket(personnel, offense.get("personnel"), "personnel")
+            _count_bucket(fronts, defense.get("front"), "front")
+            _count_bucket(coverages, defense.get("coverage"), "coverage")
+            _count_bucket(blitz, defense.get("blitz"), "blitz")
+            _count_bucket(pressure, defense.get("pressure"), "pressure")
+            _count_bucket(results, outcome.get("result"), "result")
+            if breakdown_payload.get("DN"):
+                _count_bucket(down_counts, breakdown_payload.get("DN"), "down")
+            if breakdown_payload.get("DIST"):
+                _count_bucket(distance_buckets, breakdown_payload.get("DIST"), "distance")
+            if breakdown_payload.get("HASH"):
+                _count_bucket(hash_counts, breakdown_payload.get("HASH"), "hash")
+            if breakdown_payload.get("YARD LN"):
+                _count_bucket(field_position_counts, breakdown_payload.get("YARD LN"), "yard_line")
+
+            sample = {
+                "run_id": run.id,
+                "game": run.game.label,
+                "clip_number": analysis.clip.clip_number if analysis.clip else None,
+                "play_type": payload.get("play_type"),
+                "side_of_ball": payload.get("side_of_ball"),
+                "summary": payload.get("summary"),
+                "offense": offense,
+                "defense": defense,
+                "outcome": outcome,
+                "breakdown": breakdown_payload,
+                "notes": payload.get("notes") or [],
+            }
+
+            side = (payload.get("side_of_ball") or "").lower()
+            if "off" in side and len(offensive_samples) < 18:
+                offensive_samples.append(sample)
+            elif "def" in side and len(defensive_samples) < 18:
+                defensive_samples.append(sample)
+
+            if (
+                breakdown_payload.get("DN")
+                or breakdown_payload.get("DIST")
+                or outcome.get("situation")
+            ) and len(situational_samples) < 18:
+                situational_samples.append(sample)
+
+    return {
+        "report_title": report.title,
+        "report_type": report.report_type,
+        "focus_team": report.focus_team.name,
+        "completed_play_count": completed_play_count,
+        "top_play_types": play_types.most_common(10),
+        "top_sides": sides.most_common(10),
+        "top_formations": formations.most_common(10),
+        "top_personnel": personnel.most_common(10),
+        "top_fronts": fronts.most_common(10),
+        "top_coverages": coverages.most_common(10),
+        "top_blitz": blitz.most_common(10),
+        "top_pressure": pressure.most_common(10),
+        "top_results": results.most_common(10),
+        "top_downs": down_counts.most_common(10),
+        "top_distances": distance_buckets.most_common(10),
+        "top_hashes": hash_counts.most_common(10),
+        "top_field_positions": field_position_counts.most_common(10),
+        "offensive_samples": offensive_samples,
+        "defensive_samples": defensive_samples,
+        "situational_samples": situational_samples,
     }
 
 
@@ -506,7 +918,52 @@ def report_detail(report_id):
 
     report = Report.query.get_or_404(report_id)
     metrics = _collect_report_metrics(report)
-    return render_template("report_detail.html", report=report, metrics=metrics)
+    view_model = _build_report_view_model(report, metrics)
+    return render_template("report_detail.html", report=report, metrics=metrics, view_model=view_model)
+
+
+@bp.route("/reports/<int:report_id>/pdf")
+def report_pdf(report_id):
+    login_redirect = require_login("main.reports")
+    if login_redirect:
+        return login_redirect
+
+    report = Report.query.get_or_404(report_id)
+    metrics = _collect_report_metrics(report)
+    return _build_pdf_response(report, metrics)
+
+
+@bp.route("/reports/<int:report_id>/generate", methods=["POST"])
+def generate_report(report_id):
+    login_redirect = require_login("main.reports")
+    if login_redirect:
+        return login_redirect
+
+    report = Report.query.get_or_404(report_id)
+    payload = _build_report_payload(report)
+    play_count = payload["completed_play_count"]
+    if play_count == 0:
+        flash("Für diesen Report liegen noch keine fertigen Clip-Analysen vor.", "warning")
+        return redirect(url_for("main.report_detail", report_id=report.id))
+
+    try:
+        report.status = "generating"
+        db.session.commit()
+
+        result = synthesize_report_with_gemini(current_app.config, report, payload)
+        report.summary = result["report_text"]
+        report.status = "completed"
+        db.session.commit()
+        flash(f"AI-Scouting-Report wurde aus {play_count} Play-Analysen generiert.", "success")
+    except Exception as exc:
+        db.session.rollback()
+        report = Report.query.get(report_id)
+        if report:
+            report.status = "draft"
+            db.session.commit()
+        flash(f"Report-Generierung fehlgeschlagen: {exc}", "danger")
+
+    return redirect(url_for("main.report_detail", report_id=report_id))
 
 
 @bp.route("/reports/<int:report_id>/delete", methods=["POST"])

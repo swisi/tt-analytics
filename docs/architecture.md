@@ -128,7 +128,7 @@ Moegliche Berechtigungen:
 
 ## AI-Layer
 
-Empfohlener Start:
+Zielbild:
 
 - `tt-analytics` spricht mit LiteLLM
 - LiteLLM routet im MVP nur auf Gemini
@@ -145,6 +145,11 @@ Wichtig:
 - im MVP bleibt die fachliche Zielsetzung trotzdem einfach
 - ein Gateway bedeutet nicht, dass wir gleich ein komplexes Multi-Provider-Routing bauen muessen
 - anfangs reicht `LiteLLM -> Gemini`
+
+Aktueller Implementierungsstand:
+
+- der MVP spricht derzeit direkt mit Gemini
+- die Provider-Abstraktion ueber LiteLLM ist weiterhin vorgesehen, aber noch nicht umgesetzt
 
 ## RAG / Wissenskontext
 
@@ -190,6 +195,30 @@ Wichtig:
 
 - Aggregation ueber ein oder mehrere Spiele
 - Erstellung eines Reports nach Coaching-Sicht
+- mehrstufige AI-Synthese statt eines einzelnen Gross-Prompts
+- Trennung in `Executive Overview`, Tendency Tables und `Full Report`
+- Rendering der Web-Ansicht als Markdown/HTML
+- PDF-Export ueber denselben HTML-Report statt ueber einen separaten Text-Renderer
+
+## Reporting und Export
+
+Der aktuelle Reporting-Pfad ist bewusst zweistufig aufgebaut:
+
+1. Aggregation der fertigen Clip-Analysen zu normalisierten Tendenzen und Samples
+2. AI-Synthese in mehreren Sections statt in einem einzigen Mega-Prompt
+
+Die Darstellung fuer Coaches folgt derzeit diesem Muster:
+
+- `Executive Overview` als verdichtete Management-Sicht
+- `At a Glance`-Karten fuer die wichtigsten Signale
+- `Tendency Tables` fuer Formationen, Fronts, Coverages, Outcomes und Situationsdaten
+- `Full Report` mit sectionweiser, markdown-basierter Darstellung
+
+Wichtig fuer die Ausgabe:
+
+- Web und PDF teilen sich dieselbe Report-Struktur
+- das PDF wird aus HTML erzeugt, nicht mehr aus einem separat gezeichneten Low-Level-Layout
+- dadurch bleiben Ueberschriften, Listen, Absaetze und Abstaende naeher an der Web-Darstellung
 
 ## Betriebsmodell fuer lange Analysen
 

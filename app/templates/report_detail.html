@@ -6,7 +6,7 @@
     .report-markdown h1,
     .report-markdown h2,
     .report-markdown h3 {
-        color: rgb(248 250 252);
+        color: rgb(15 23 42);
         font-weight: 700;
         line-height: 1.2;
     }
@@ -15,23 +15,23 @@
         margin-top: 0;
         margin-bottom: 1rem;
         padding-bottom: 0.6rem;
-        border-bottom: 1px solid rgb(71 85 105);
+        border-bottom: 1px solid rgb(203 213 225);
     }
     .report-markdown h2 {
         font-size: 1.15rem;
         margin-top: 1.5rem;
         margin-bottom: 0.75rem;
-        color: rgb(191 219 254);
+        color: rgb(49 46 129);
     }
     .report-markdown h3 {
         font-size: 1rem;
         margin-top: 1rem;
         margin-bottom: 0.5rem;
-        color: rgb(226 232 240);
+        color: rgb(30 41 59);
     }
     .report-markdown p,
     .report-markdown li {
-        color: rgb(226 232 240);
+        color: rgb(51 65 85);
         font-size: 0.98rem;
         line-height: 1.7;
     }
@@ -46,19 +46,46 @@
         margin: 0.25rem 0;
     }
     .report-markdown strong {
-        color: rgb(255 255 255);
+        color: rgb(15 23 42);
         font-weight: 700;
     }
     .report-markdown em {
-        color: rgb(191 219 254);
+        color: rgb(67 56 202);
     }
     .report-markdown hr {
         border: 0;
-        border-top: 1px solid rgb(71 85 105);
+        border-top: 1px solid rgb(203 213 225);
         margin: 1rem 0;
     }
     .report-markdown p:first-child {
         margin-top: 0;
+    }
+    .dark .report-markdown h1,
+    .dark .report-markdown h2,
+    .dark .report-markdown h3 {
+        color: rgb(248 250 252);
+    }
+    .dark .report-markdown h1 {
+        border-bottom-color: rgb(71 85 105);
+    }
+    .dark .report-markdown h2 {
+        color: rgb(191 219 254);
+    }
+    .dark .report-markdown h3 {
+        color: rgb(226 232 240);
+    }
+    .dark .report-markdown p,
+    .dark .report-markdown li {
+        color: rgb(226 232 240);
+    }
+    .dark .report-markdown strong {
+        color: rgb(255 255 255);
+    }
+    .dark .report-markdown em {
+        color: rgb(191 219 254);
+    }
+    .dark .report-markdown hr {
+        border-top-color: rgb(71 85 105);
     }
 </style>
 <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -90,6 +117,188 @@
     </div>
 </div>
 
+{% set has_play_by_play = play_view and play_view.plays %}
+{% if has_play_by_play %}
+<div class="mb-6">
+    <div class="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-sm">
+        <a href="{{ url_for('main.report_detail', report_id=report.id, tab='overview') }}" class="px-4 py-2 text-sm font-medium rounded-lg transition {{ 'bg-indigo-600 text-white shadow' if active_tab == 'overview' else 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700' }}">
+            Overview
+        </a>
+        <a href="{{ url_for('main.report_detail', report_id=report.id, tab='play_by_play') }}" class="px-4 py-2 text-sm font-medium rounded-lg transition {{ 'bg-indigo-600 text-white shadow' if active_tab == 'play_by_play' else 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700' }}">
+            Play by Play
+        </a>
+    </div>
+</div>
+{% endif %}
+
+{% if active_tab == 'play_by_play' and has_play_by_play %}
+<div class="grid grid-cols-1 xl:grid-cols-4 gap-4 mb-6">
+    <div class="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5">
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Plays</div>
+        <div class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{{ play_view.highlights.total_plays }}</div>
+    </div>
+    <div class="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5">
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Serien</div>
+        <div class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{{ play_view.highlights.total_series }}</div>
+    </div>
+    <div class="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5">
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Explosive Plays</div>
+        <div class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{{ play_view.highlights.explosive_plays }}</div>
+    </div>
+    <div class="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5">
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Top Outcome</div>
+        <div class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{{ play_view.highlights.top_result }}</div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section class="xl:col-span-2 space-y-6">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Play Filters</h2>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Filtere den Spielverlauf nach Quarter, Down, Play Type und Side.</p>
+                </div>
+            </div>
+            <form method="get" action="{{ url_for('main.report_detail', report_id=report.id) }}" class="grid grid-cols-1 md:grid-cols-5 gap-3">
+                <input type="hidden" name="tab" value="play_by_play">
+                <select name="quarter" class="px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-slate-100">
+                    <option value="">Alle Quarter</option>
+                    {% for value in play_view.options.quarter %}
+                    <option value="{{ value }}" {% if play_view.filters.quarter == value %}selected{% endif %}>Q{{ value }}</option>
+                    {% endfor %}
+                </select>
+                <select name="down" class="px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-slate-100">
+                    <option value="">Alle Downs</option>
+                    {% for value in play_view.options.down %}
+                    <option value="{{ value }}" {% if play_view.filters.down == value %}selected{% endif %}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+                <select name="play_type" class="px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-slate-100">
+                    <option value="">Alle Play Types</option>
+                    {% for value in play_view.options.play_type %}
+                    <option value="{{ value }}" {% if play_view.filters.play_type == value %}selected{% endif %}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+                <select name="side" class="px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-slate-100">
+                    <option value="">Alle Sides</option>
+                    {% for value in play_view.options.side %}
+                    <option value="{{ value }}" {% if play_view.filters.side == value %}selected{% endif %}>{{ value }}</option>
+                    {% endfor %}
+                </select>
+                <div class="flex gap-2">
+                    <button type="submit" class="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">Filtern</button>
+                    <a href="{{ url_for('main.report_detail', report_id=report.id, tab='play_by_play') }}" class="px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg text-center">Reset</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Play Timeline</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="text-xs uppercase text-slate-500 dark:text-slate-400">
+                        <tr>
+                            <th class="text-left py-2 pr-3">Play</th>
+                            <th class="text-left py-2 pr-3">Situation</th>
+                            <th class="text-left py-2 pr-3">Structure</th>
+                            <th class="text-left py-2 pr-3">Defense</th>
+                            <th class="text-left py-2 pr-3">Summary</th>
+                            <th class="text-left py-2">Outcome</th>
+                        </tr>
+                    </thead>
+                    <tbody class="align-top">
+                        {% for play in play_view.plays %}
+                        <tr class="border-t border-slate-200 dark:border-slate-700">
+                            <td class="py-3 pr-3 text-slate-900 dark:text-white">
+                                <div class="font-semibold">#{{ play.play_number or play.clip_number or loop.index }}</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">Q{{ play.quarter }} · Serie {{ play.series }}</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">{{ play.side_of_ball }} · {{ play.play_type }}</div>
+                            </td>
+                            <td class="py-3 pr-3 text-slate-600 dark:text-slate-300">
+                                <div>{{ play.down }} & {{ play.distance }}</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">{{ play.field_position }} · {{ play.hash }}</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">{{ play.situation }}</div>
+                            </td>
+                            <td class="py-3 pr-3 text-slate-600 dark:text-slate-300">
+                                <div>{{ play.formation }}</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">{{ play.personnel }} · {{ play.motion }}</div>
+                            </td>
+                            <td class="py-3 pr-3 text-slate-600 dark:text-slate-300">
+                                <div>{{ play.front }}</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">{{ play.coverage }}</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">{{ play.blitz }} · {{ play.pressure }}</div>
+                            </td>
+                            <td class="py-3 pr-3 text-slate-600 dark:text-slate-300">
+                                <div>{{ play.summary }}</div>
+                                {% if play.notes %}
+                                <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ play.notes | join(' · ') }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="py-3 text-slate-600 dark:text-slate-300">
+                                <div class="font-medium text-slate-900 dark:text-white">{{ play.result }}</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">{{ play.yards_gained if play.yards_gained is not none else 'n/a' }} Yds · {{ play.field_zone }}</div>
+                                {% if play.explosive %}
+                                <div class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-1">Explosive</div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="space-y-6">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Quarter Summary</h2>
+            <div class="space-y-3">
+                {% for entry in play_view.quarter_summaries %}
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                    <div class="font-medium text-slate-900 dark:text-white">Q{{ entry.quarter }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ entry.play_count }} Plays · {{ entry.top_type }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ entry.top_result }} · Explosive {{ entry.explosive_count }}</div>
+                </div>
+                {% else %}
+                <p class="text-sm text-slate-500 dark:text-slate-400">Noch keine Quarter-Summary verfügbar.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Series Breakdown</h2>
+            <div class="space-y-3">
+                {% for entry in play_view.series_summaries %}
+                <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                    <div class="font-medium text-slate-900 dark:text-white">{{ entry.label }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ entry.play_count }} Plays · {{ entry.top_type }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Start: {{ entry.start_down }} · Ende: {{ entry.end_result }}</div>
+                    <div class="text-sm text-slate-600 dark:text-slate-300 mt-2">{{ entry.summary }}</div>
+                </div>
+                {% else %}
+                <p class="text-sm text-slate-500 dark:text-slate-400">Noch keine Serien verfügbar.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Coach Notes</h2>
+            {% if play_view.notes %}
+            <div class="space-y-2">
+                {% for note in play_view.notes %}
+                <div class="rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                    {{ note }}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-500 dark:text-slate-400">Noch keine Notes aus fertigen Clip-Analysen vorhanden.</p>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% else %}
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
     <section class="xl:col-span-2 space-y-6">
         <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
@@ -350,4 +559,5 @@
         </div>
     </section>
 </div>
+{% endif %}
 {% endblock %}

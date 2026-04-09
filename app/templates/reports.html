@@ -4,7 +4,7 @@
 {% block content %}
 <div class="mb-8">
     <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Reports</h1>
-    <p class="text-slate-500 dark:text-slate-400 mt-2">Ein Report aggregiert mehrere Runs für dasselbe Fokus-Team über ein oder mehrere Spiele.</p>
+    <p class="text-slate-500 dark:text-slate-400 mt-2">Ein Report aggregiert mehrere Runs für dasselbe Fokus-Team über ein oder mehrere Spiele. Play-by-Play basiert auf genau einem Run.</p>
 </div>
 
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -14,7 +14,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div>
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Titel</label>
-                <input name="title" type="text" required class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm" placeholder="z. B. Scouting Report Genf">
+                <input name="title" type="text" required class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm" placeholder="z. B. Scouting Report Genf oder Play by Play vs. Genf">
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Report-Typ</label>
@@ -22,6 +22,7 @@
                     <option value="multi_game_opponent">Multi Game Opponent</option>
                     <option value="single_game">Single Game</option>
                     <option value="self_scout">Self Scout</option>
+                    <option value="play_by_play">Play by Play</option>
                 </select>
             </div>
             <div>

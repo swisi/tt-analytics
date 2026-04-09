@@ -1,6 +1,7 @@
 import re
 from collections import Counter
 from datetime import datetime
+from itertools import groupby
 from pathlib import Path
 import threading
 from uuid import uuid4
@@ -15,9 +16,17 @@ from weasyprint import HTML
 from ..extensions import db
 from ..models import AnalysisRun, Clip, ClipAnalysis, ClipMetadata, Game, Report, ReportRun, Season, Team
 from ..services.breakdown_import import parse_xlsx_rows
-from ..services.gemini_analysis import analyze_clip_with_gemini, synthesize_report_with_gemini
+from ..services.gemini_analysis import analyze_clip_with_gemini, synthesize_play_by_play_report_with_gemini, synthesize_report_with_gemini
 
 bp = Blueprint("main", __name__)
+
+
+REPORT_TYPE_LABELS = {
+    "multi_game_opponent": "Multi Game Opponent",
+    "single_game": "Single Game",
+    "self_scout": "Self Scout",
+    "play_by_play": "Play by Play",
+}
 
 
 
@@ -205,7 +214,222 @@ def _split_report_sections(text):
     return sections
 
 
+def _safe_int(value):
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    match = re.search(r"-?\d+", text)
+    if not match:
+        return None
+    try:
+        return int(match.group(0))
+    except ValueError:
+        return None
+
+
+def _first_non_empty(mapping, keys):
+    for key in keys:
+        value = mapping.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _stringify(value, fallback="n/a"):
+    if value in (None, ""):
+        return fallback
+    return str(value).strip() or fallback
+
+
+def _breakdown_payload_for_analysis(analysis):
+    if not analysis.clip:
+        return {}
+    breakdown = next(
+        (item for item in analysis.clip.metadata_entries if item.source_kind == "breakdown_excel"),
+        None,
+    )
+    return breakdown.payload_json if breakdown else {}
+
+
+def _build_play_entry(run, analysis):
+    payload = analysis.result_json or {}
+    offense = payload.get("offense") or {}
+    defense = payload.get("defense") or {}
+    outcome = payload.get("outcome") or {}
+    breakdown = _breakdown_payload_for_analysis(analysis)
+
+    quarter = _first_non_empty(breakdown, ("QTR", "QUARTER", "PERIOD"))
+    series = _first_non_empty(breakdown, ("SERIES", "DRIVE", "POSSESSION"))
+    down = _first_non_empty(breakdown, ("DN", "DOWN"))
+    distance = _first_non_empty(breakdown, ("DIST", "DISTANCE"))
+    field_position = _first_non_empty(breakdown, ("YARD LN", "YARDLINE", "FIELD POSITION"))
+    hash_value = _first_non_empty(breakdown, ("HASH",))
+    breakdown_play_type = _first_non_empty(breakdown, ("PLAY TYPE", "PLAY_TYPE"))
+    play_number = (
+        payload.get("play_number")
+        or _safe_int(_first_non_empty(breakdown, ("PLAY #", "PLAY#", "PLAY NO", "PLAY NUMBER")))
+        or _safe_int(analysis.clip.external_play_number if analysis.clip else None)
+        or analysis.clip.clip_number
+    )
+    yards_gained = outcome.get("yards_gained")
+    explosive = isinstance(yards_gained, int) and abs(yards_gained) >= 12
+
+    return {
+        "run_id": run.id,
+        "game": run.game.label,
+        "game_id": run.game_id,
+        "focus_team": run.focus_team.name,
+        "analysis_mode": run.analysis_mode,
+        "clip_id": analysis.clip.id if analysis.clip else None,
+        "clip_number": analysis.clip.clip_number if analysis.clip else None,
+        "play_number": play_number,
+        "quarter": _stringify(quarter),
+        "quarter_num": _safe_int(quarter) or 99,
+        "series": _stringify(series),
+        "series_num": _safe_int(series) or 999,
+        "down": _stringify(down),
+        "down_num": _safe_int(down) or 99,
+        "distance": _stringify(distance),
+        "field_position": _stringify(field_position),
+        "hash": _stringify(hash_value),
+        "play_type": _normalize_bucket_value(payload.get("play_type") or breakdown_play_type, "play_type") or "Unknown",
+        "side_of_ball": _normalize_bucket_value(payload.get("side_of_ball"), "side_of_ball") or "Unknown",
+        "summary": _stringify(payload.get("summary"), fallback="Keine Zusammenfassung"),
+        "formation": _normalize_bucket_value(offense.get("formation"), "formation") or "n/a",
+        "personnel": _normalize_bucket_value(offense.get("personnel"), "personnel") or "n/a",
+        "motion": _stringify(offense.get("motion")),
+        "play_direction": _stringify(offense.get("play_direction")),
+        "front": _normalize_bucket_value(defense.get("front"), "front") or "n/a",
+        "coverage": _normalize_bucket_value(defense.get("coverage"), "coverage") or "n/a",
+        "blitz": _normalize_bucket_value(defense.get("blitz"), "blitz") or "n/a",
+        "pressure": _normalize_bucket_value(defense.get("pressure"), "pressure") or "n/a",
+        "result": _normalize_bucket_value(outcome.get("result"), "result") or "Unknown",
+        "yards_gained": yards_gained,
+        "field_zone": _stringify(outcome.get("field_zone")),
+        "situation": _stringify(outcome.get("situation")),
+        "notes": [note.strip() for note in (payload.get("notes") or []) if str(note).strip()],
+        "explosive": explosive,
+        "breakdown": breakdown,
+        "sort_key": (
+            _safe_int(quarter) or 99,
+            _safe_int(series) or 999,
+            _safe_int(play_number) or 9999,
+            analysis.clip.clip_number if analysis.clip and analysis.clip.clip_number is not None else 9999,
+            analysis.id,
+        ),
+    }
+
+
+def _collect_report_plays(report):
+    plays = []
+    for entry in report.runs:
+        run = entry.analysis_run
+        for analysis in run.clip_analyses:
+            if analysis.status != "completed" or not analysis.result_json:
+                continue
+            plays.append(_build_play_entry(run, analysis))
+    return sorted(plays, key=lambda item: item["sort_key"])
+
+
+def _build_play_by_play_view(report, plays, request_args=None):
+    request_args = request_args or {}
+    filters = {
+        "quarter": (request_args.get("quarter") or "").strip(),
+        "down": (request_args.get("down") or "").strip(),
+        "play_type": (request_args.get("play_type") or "").strip(),
+        "side": (request_args.get("side") or "").strip(),
+    }
+
+    filtered_plays = []
+    for play in plays:
+        if filters["quarter"] and play["quarter"] != filters["quarter"]:
+            continue
+        if filters["down"] and play["down"] != filters["down"]:
+            continue
+        if filters["play_type"] and play["play_type"] != filters["play_type"]:
+            continue
+        if filters["side"] and play["side_of_ball"] != filters["side"]:
+            continue
+        filtered_plays.append(play)
+
+    quarter_options = sorted({play["quarter"] for play in plays if play["quarter"] != "n/a"}, key=lambda item: (_safe_int(item) or 99, item))
+    down_options = sorted({play["down"] for play in plays if play["down"] != "n/a"}, key=lambda item: (_safe_int(item) or 99, item))
+    play_type_options = sorted({play["play_type"] for play in plays if play["play_type"] != "Unknown"})
+    side_options = sorted({play["side_of_ball"] for play in plays if play["side_of_ball"] != "Unknown"})
+
+    quarter_counter = Counter(play["quarter"] for play in filtered_plays if play["quarter"] != "n/a")
+    result_counter = Counter(play["result"] for play in filtered_plays if play["result"] != "Unknown")
+    explosive_count = sum(1 for play in filtered_plays if play["explosive"])
+    notes = []
+    for play in filtered_plays:
+        for note in play["notes"]:
+            if note not in notes:
+                notes.append(note)
+            if len(notes) >= 10:
+                break
+        if len(notes) >= 10:
+            break
+
+    series_summaries = []
+    for (quarter, series), group in groupby(filtered_plays, key=lambda item: (item["quarter"], item["series"])):
+        grouped = list(group)
+        first_play = grouped[0]
+        last_play = grouped[-1]
+        series_summaries.append(
+            {
+                "label": f"Q{quarter} · Serie {series}",
+                "play_count": len(grouped),
+                "start_down": f"{first_play['down']} & {first_play['distance']}",
+                "end_result": last_play["result"],
+                "top_type": Counter(play["play_type"] for play in grouped).most_common(1)[0][0],
+                "explosive_count": sum(1 for play in grouped if play["explosive"]),
+                "summary": last_play["summary"],
+            }
+        )
+
+    quarter_summaries = []
+    for quarter, group in groupby(filtered_plays, key=lambda item: item["quarter"]):
+        grouped = list(group)
+        quarter_summaries.append(
+            {
+                "quarter": quarter,
+                "play_count": len(grouped),
+                "top_type": Counter(play["play_type"] for play in grouped).most_common(1)[0][0],
+                "top_result": Counter(play["result"] for play in grouped).most_common(1)[0][0],
+                "explosive_count": sum(1 for play in grouped if play["explosive"]),
+            }
+        )
+
+    return {
+        "filters": filters,
+        "options": {
+            "quarter": quarter_options,
+            "down": down_options,
+            "play_type": play_type_options,
+            "side": side_options,
+        },
+        "plays": filtered_plays,
+        "series_summaries": series_summaries,
+        "quarter_summaries": quarter_summaries,
+        "notes": notes,
+        "highlights": {
+            "total_plays": len(filtered_plays),
+            "total_series": len(series_summaries),
+            "explosive_plays": explosive_count,
+            "top_quarter": quarter_counter.most_common(1)[0][0] if quarter_counter else "n/a",
+            "top_result": result_counter.most_common(1)[0][0] if result_counter else "Unknown",
+        },
+    }
+
+
 def _collect_report_metrics(report):
+    plays = _collect_report_plays(report)
     play_types = Counter()
     side_of_ball = Counter()
     formations = Counter()
@@ -220,53 +444,28 @@ def _collect_report_metrics(report):
     hashes = Counter()
     field_positions = Counter()
     notes = []
-    analyzed_clips = 0
-
-    for entry in report.runs:
-        for analysis in entry.analysis_run.clip_analyses:
-            if analysis.status != "completed" or not analysis.result_json:
-                continue
-
-            payload = analysis.result_json
-            analyzed_clips += 1
-
-            _count_bucket(play_types, payload.get("play_type"), "play_type")
-            _count_bucket(side_of_ball, payload.get("side_of_ball"), "side_of_ball")
-
-            offense = payload.get("offense") or {}
-            defense = payload.get("defense") or {}
-            outcome = payload.get("outcome") or {}
-            breakdown_payload = {}
-            if analysis.clip:
-                breakdown = next(
-                    (item for item in analysis.clip.metadata_entries if item.source_kind == "breakdown_excel"),
-                    None,
-                )
-                breakdown_payload = breakdown.payload_json if breakdown else {}
-
-            _count_bucket(formations, offense.get("formation"), "formation")
-            _count_bucket(personnel, offense.get("personnel"), "personnel")
-            _count_bucket(fronts, defense.get("front"), "front")
-            _count_bucket(coverages, defense.get("coverage"), "coverage")
-            _count_bucket(blitz, defense.get("blitz"), "blitz")
-            _count_bucket(pressure, defense.get("pressure"), "pressure")
-            _count_bucket(results, outcome.get("result"), "result")
-            if breakdown_payload.get("DN"):
-                _count_bucket(downs, breakdown_payload.get("DN"), "down")
-            if breakdown_payload.get("DIST"):
-                _count_bucket(distances, breakdown_payload.get("DIST"), "distance")
-            if breakdown_payload.get("HASH"):
-                _count_bucket(hashes, breakdown_payload.get("HASH"), "hash")
-            if breakdown_payload.get("YARD LN"):
-                _count_bucket(field_positions, breakdown_payload.get("YARD LN"), "yard_line")
-
-            for note in payload.get("notes") or []:
-                note_text = (note or "").strip()
-                if note_text:
-                    notes.append(note_text)
+    for play in plays:
+        _count_bucket(play_types, play["play_type"], "play_type")
+        _count_bucket(side_of_ball, play["side_of_ball"], "side_of_ball")
+        _count_bucket(formations, play["formation"], "formation")
+        _count_bucket(personnel, play["personnel"], "personnel")
+        _count_bucket(fronts, play["front"], "front")
+        _count_bucket(coverages, play["coverage"], "coverage")
+        _count_bucket(blitz, play["blitz"], "blitz")
+        _count_bucket(pressure, play["pressure"], "pressure")
+        _count_bucket(results, play["result"], "result")
+        if play["down"] != "n/a":
+            _count_bucket(downs, play["down"], "down")
+        if play["distance"] != "n/a":
+            _count_bucket(distances, play["distance"], "distance")
+        if play["hash"] != "n/a":
+            _count_bucket(hashes, play["hash"], "hash")
+        if play["field_position"] != "n/a":
+            _count_bucket(field_positions, play["field_position"], "yard_line")
+        notes.extend(play["notes"])
 
     return {
-        "analyzed_clips": analyzed_clips,
+        "analyzed_clips": len(plays),
         "top_play_types": play_types.most_common(5),
         "top_sides": side_of_ball.most_common(5),
         "top_formations": formations.most_common(5),
@@ -315,23 +514,42 @@ def _build_report_view_model(report, metrics):
         if title != executive_title and body.strip()
     ]
     executive_html = _render_report_markdown(executive_body)
-    at_a_glance = [
-        {
-            "title": "Offense",
-            "value": _top_metric_label(metrics["top_play_types"]),
-            "detail": f"Formation: {_top_metric_label(metrics['top_formations'])}",
-        },
-        {
-            "title": "Defense",
-            "value": _top_metric_label(metrics["top_fronts"]),
-            "detail": f"Coverage: {_top_metric_label(metrics['top_coverages'])}",
-        },
-        {
-            "title": "Situation",
-            "value": _top_metric_label(metrics["top_results"]),
-            "detail": f"Top Down: {_top_metric_label(metrics['top_downs'])}",
-        },
-    ]
+    if report.report_type == "play_by_play":
+        at_a_glance = [
+            {
+                "title": "Play Flow",
+                "value": _top_metric_label(metrics["top_play_types"]),
+                "detail": f"Result: {_top_metric_label(metrics['top_results'])}",
+            },
+            {
+                "title": "Defense",
+                "value": _top_metric_label(metrics["top_fronts"]),
+                "detail": f"Coverage: {_top_metric_label(metrics['top_coverages'])}",
+            },
+            {
+                "title": "Situation",
+                "value": _top_metric_label(metrics["top_downs"]),
+                "detail": f"Field: {_top_metric_label(metrics['top_field_positions'])}",
+            },
+        ]
+    else:
+        at_a_glance = [
+            {
+                "title": "Offense",
+                "value": _top_metric_label(metrics["top_play_types"]),
+                "detail": f"Formation: {_top_metric_label(metrics['top_formations'])}",
+            },
+            {
+                "title": "Defense",
+                "value": _top_metric_label(metrics["top_fronts"]),
+                "detail": f"Coverage: {_top_metric_label(metrics['top_coverages'])}",
+            },
+            {
+                "title": "Situation",
+                "value": _top_metric_label(metrics["top_results"]),
+                "detail": f"Top Down: {_top_metric_label(metrics['top_downs'])}",
+            },
+        ]
     return {
         "executive_title": executive_title,
         "executive_html": executive_html,
@@ -360,12 +578,15 @@ def _build_table_sections(metrics):
 
 def _build_pdf_response(report, metrics):
     view_model = _build_report_view_model(report, metrics)
+    play_view = _build_play_by_play_view(report, _collect_report_plays(report))
+    template_name = "report_pdf_play_by_play.html" if report.report_type == "play_by_play" else "report_pdf.html"
     html = render_template(
-        "report_pdf.html",
+        template_name,
         report=report,
         metrics=metrics,
         view_model=view_model,
         table_sections=_build_table_sections(metrics),
+        play_view=play_view,
         generated_at=datetime.now(),
     )
     pdf_bytes = HTML(string=html, base_url=str(Path(current_app.root_path).parent)).write_pdf()
@@ -379,6 +600,7 @@ def _build_pdf_response(report, metrics):
 
 
 def _build_report_payload(report):
+    plays = _collect_report_plays(report)
     completed_play_count = 0
     play_types = Counter()
     sides = Counter()
@@ -396,71 +618,91 @@ def _build_report_payload(report):
     distance_buckets = Counter()
     hash_counts = Counter()
     field_position_counts = Counter()
+    play_by_play_samples = []
+    drive_summaries = []
+    quarter_summaries = []
 
-    for entry in report.runs:
-        run = entry.analysis_run
-        for analysis in run.clip_analyses:
-            if analysis.status != "completed" or not analysis.result_json:
-                continue
-            completed_play_count += 1
+    for play in plays:
+        completed_play_count += 1
+        _count_bucket(play_types, play["play_type"], "play_type")
+        _count_bucket(sides, play["side_of_ball"], "side_of_ball")
+        _count_bucket(formations, play["formation"], "formation")
+        _count_bucket(personnel, play["personnel"], "personnel")
+        _count_bucket(fronts, play["front"], "front")
+        _count_bucket(coverages, play["coverage"], "coverage")
+        _count_bucket(blitz, play["blitz"], "blitz")
+        _count_bucket(pressure, play["pressure"], "pressure")
+        _count_bucket(results, play["result"], "result")
+        if play["down"] != "n/a":
+            _count_bucket(down_counts, play["down"], "down")
+        if play["distance"] != "n/a":
+            _count_bucket(distance_buckets, play["distance"], "distance")
+        if play["hash"] != "n/a":
+            _count_bucket(hash_counts, play["hash"], "hash")
+        if play["field_position"] != "n/a":
+            _count_bucket(field_position_counts, play["field_position"], "yard_line")
 
-            payload = analysis.result_json
-            _count_bucket(play_types, payload.get("play_type"), "play_type")
-            _count_bucket(sides, payload.get("side_of_ball"), "side_of_ball")
+        sample = {
+            "run_id": play["run_id"],
+            "game": play["game"],
+            "clip_number": play["clip_number"],
+            "play_number": play["play_number"],
+            "play_type": play["play_type"],
+            "side_of_ball": play["side_of_ball"],
+            "summary": play["summary"],
+            "offense": {
+                "formation": play["formation"],
+                "personnel": play["personnel"],
+                "motion": play["motion"],
+                "play_direction": play["play_direction"],
+            },
+            "defense": {
+                "front": play["front"],
+                "coverage": play["coverage"],
+                "blitz": play["blitz"],
+                "pressure": play["pressure"],
+            },
+            "outcome": {
+                "result": play["result"],
+                "yards_gained": play["yards_gained"],
+                "field_zone": play["field_zone"],
+                "situation": play["situation"],
+            },
+            "breakdown": play["breakdown"],
+            "notes": play["notes"],
+        }
 
-            offense = payload.get("offense") or {}
-            defense = payload.get("defense") or {}
-            outcome = payload.get("outcome") or {}
-            breakdown_payload = {}
-            if analysis.clip:
-                breakdown = next(
-                    (item for item in analysis.clip.metadata_entries if item.source_kind == "breakdown_excel"),
-                    None,
-                )
-                breakdown_payload = breakdown.payload_json if breakdown else {}
+        side = play["side_of_ball"].lower()
+        if "off" in side and len(offensive_samples) < 18:
+            offensive_samples.append(sample)
+        elif "def" in side and len(defensive_samples) < 18:
+            defensive_samples.append(sample)
 
-            _count_bucket(formations, offense.get("formation"), "formation")
-            _count_bucket(personnel, offense.get("personnel"), "personnel")
-            _count_bucket(fronts, defense.get("front"), "front")
-            _count_bucket(coverages, defense.get("coverage"), "coverage")
-            _count_bucket(blitz, defense.get("blitz"), "blitz")
-            _count_bucket(pressure, defense.get("pressure"), "pressure")
-            _count_bucket(results, outcome.get("result"), "result")
-            if breakdown_payload.get("DN"):
-                _count_bucket(down_counts, breakdown_payload.get("DN"), "down")
-            if breakdown_payload.get("DIST"):
-                _count_bucket(distance_buckets, breakdown_payload.get("DIST"), "distance")
-            if breakdown_payload.get("HASH"):
-                _count_bucket(hash_counts, breakdown_payload.get("HASH"), "hash")
-            if breakdown_payload.get("YARD LN"):
-                _count_bucket(field_position_counts, breakdown_payload.get("YARD LN"), "yard_line")
+        if (play["down"] != "n/a" or play["distance"] != "n/a" or play["situation"] != "n/a") and len(situational_samples) < 18:
+            situational_samples.append(sample)
 
-            sample = {
-                "run_id": run.id,
-                "game": run.game.label,
-                "clip_number": analysis.clip.clip_number if analysis.clip else None,
-                "play_type": payload.get("play_type"),
-                "side_of_ball": payload.get("side_of_ball"),
-                "summary": payload.get("summary"),
-                "offense": offense,
-                "defense": defense,
-                "outcome": outcome,
-                "breakdown": breakdown_payload,
-                "notes": payload.get("notes") or [],
-            }
+        if len(play_by_play_samples) < 80:
+            play_by_play_samples.append(
+                {
+                    "quarter": play["quarter"],
+                    "series": play["series"],
+                    "play_number": play["play_number"],
+                    "down": play["down"],
+                    "distance": play["distance"],
+                    "field_position": play["field_position"],
+                    "play_type": play["play_type"],
+                    "side_of_ball": play["side_of_ball"],
+                    "result": play["result"],
+                    "summary": play["summary"],
+                    "explosive": play["explosive"],
+                }
+            )
 
-            side = (payload.get("side_of_ball") or "").lower()
-            if "off" in side and len(offensive_samples) < 18:
-                offensive_samples.append(sample)
-            elif "def" in side and len(defensive_samples) < 18:
-                defensive_samples.append(sample)
-
-            if (
-                breakdown_payload.get("DN")
-                or breakdown_payload.get("DIST")
-                or outcome.get("situation")
-            ) and len(situational_samples) < 18:
-                situational_samples.append(sample)
+    play_view = _build_play_by_play_view(report, plays)
+    for summary in play_view["series_summaries"][:20]:
+        drive_summaries.append(summary)
+    for summary in play_view["quarter_summaries"][:8]:
+        quarter_summaries.append(summary)
 
     return {
         "report_title": report.title,
@@ -483,6 +725,16 @@ def _build_report_payload(report):
         "offensive_samples": offensive_samples,
         "defensive_samples": defensive_samples,
         "situational_samples": situational_samples,
+        "play_by_play": {
+            "completed_play_count": completed_play_count,
+            "plays": play_by_play_samples,
+            "quarter_summaries": quarter_summaries,
+            "series_summaries": drive_summaries,
+            "top_play_types": play_types.most_common(10),
+            "top_results": results.most_common(10),
+            "top_downs": down_counts.most_common(10),
+            "top_field_positions": field_position_counts.most_common(10),
+        },
     }
 
 
@@ -884,6 +1136,11 @@ def reports():
         if len(focus_team_ids) != 1:
             flash("Alle gewählten Runs müssen dasselbe Fokus-Team haben.", "danger")
             return redirect(url_for("main.reports"))
+        if report_type == "play_by_play":
+            game_ids = {run.game_id for run in selected_runs}
+            if len(selected_runs) != 1 or len(game_ids) != 1:
+                flash("Ein Play-by-Play-Report muss genau auf einem Analyse-Run für ein Spiel basieren.", "danger")
+                return redirect(url_for("main.reports"))
 
         focus_team = selected_runs[0].focus_team
         summary_lines = [
@@ -891,6 +1148,8 @@ def reports():
             f"Analyse-Runs: {len(selected_runs)}",
             f"Grundlage: " + ", ".join(run.game.label for run in selected_runs),
         ]
+        if report_type == "play_by_play":
+            summary_lines.append("Format: Chronologische Play-by-Play-Analyse mit Drive-/Situationsfokus")
         report = Report(
             title=title,
             report_type=report_type,
@@ -921,7 +1180,19 @@ def report_detail(report_id):
     report = Report.query.get_or_404(report_id)
     metrics = _collect_report_metrics(report)
     view_model = _build_report_view_model(report, metrics)
-    return render_template("report_detail.html", report=report, metrics=metrics, view_model=view_model)
+    play_view = _build_play_by_play_view(report, _collect_report_plays(report), request.args)
+    active_tab = (request.args.get("tab") or "").strip().lower()
+    if active_tab not in {"overview", "play_by_play"}:
+        active_tab = "play_by_play" if report.report_type == "play_by_play" else "overview"
+    return render_template(
+        "report_detail.html",
+        report=report,
+        metrics=metrics,
+        view_model=view_model,
+        play_view=play_view,
+        active_tab=active_tab,
+        report_type_labels=REPORT_TYPE_LABELS,
+    )
 
 
 @bp.route("/reports/<int:report_id>/pdf")
@@ -952,11 +1223,14 @@ def generate_report(report_id):
         report.status = "generating"
         db.session.commit()
 
-        result = synthesize_report_with_gemini(current_app.config, report, payload)
+        if report.report_type == "play_by_play":
+            result = synthesize_play_by_play_report_with_gemini(current_app.config, report, payload["play_by_play"])
+        else:
+            result = synthesize_report_with_gemini(current_app.config, report, payload)
         report.summary = result["report_text"]
         report.status = "completed"
         db.session.commit()
-        flash(f"AI-Scouting-Report wurde aus {play_count} Play-Analysen generiert.", "success")
+        flash(f"AI-Report wurde aus {play_count} Play-Analysen generiert.", "success")
     except Exception as exc:
         db.session.rollback()
         report = Report.query.get(report_id)

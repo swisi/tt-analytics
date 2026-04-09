@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>{{ report.title }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 16mm 12mm 16mm 12mm;
+            @bottom-left {
+                content: "Tigers Analytics | " "{{ report.title }}";
+                color: #64748b;
+                font-size: 8pt;
+            }
+            @bottom-right {
+                content: "Seite " counter(page);
+                color: #64748b;
+                font-size: 8pt;
+            }
+        }
+        body {
+            font-family: "DejaVu Sans", sans-serif;
+            color: #0f172a;
+            font-size: 9pt;
+            line-height: 1.35;
+            margin: 0;
+        }
+        h1, h2, h3 { margin: 0; }
+        .hero, .card, .section, .series-card {
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            background: #fff;
+        }
+        .hero {
+            background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+            padding: 16px 18px;
+            margin-bottom: 14px;
+        }
+        .hero h1 { color: #312e81; font-size: 22pt; margin-bottom: 6px; }
+        .meta-grid, .stats-grid, .quarter-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .card {
+            padding: 10px 12px;
+        }
+        .label {
+            color: #475569;
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            font-weight: 700;
+        }
+        .value {
+            margin-top: 6px;
+            font-size: 14pt;
+            font-weight: 700;
+        }
+        .section {
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+        .section h2 {
+            color: #312e81;
+            font-size: 13pt;
+            margin-bottom: 8px;
+        }
+        .series-card {
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            break-inside: avoid;
+        }
+        .report-markdown h1, .report-markdown h2, .report-markdown h3 { color: #0f172a; }
+        .report-markdown h2 { color: #312e81; font-size: 11pt; margin: 10px 0 6px; }
+        .report-markdown p { margin: 0 0 7px; }
+        .report-markdown ul { margin: 0 0 8px 16px; padding: 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #e2e8f0; padding: 6px 4px; vertical-align: top; }
+        th {
+            text-align: left;
+            color: #475569;
+            font-size: 7.6pt;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        tr:last-child td { border-bottom: 0; }
+        .small { color: #475569; font-size: 8pt; }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <div class="label">Tigers Analytics</div>
+        <h1>{{ report.title }}</h1>
+        <div class="small">Fokus-Team: {{ report.focus_team.name }} · Play by Play · Stand {{ generated_at.strftime('%d.%m.%Y %H:%M') }}</div>
+    </div>
+
+    <div class="meta-grid">
+        <div class="card">
+            <div class="label">Status</div>
+            <div class="value">{{ report.status }}</div>
+        </div>
+        <div class="card">
+            <div class="label">Analysierte Clips</div>
+            <div class="value">{{ metrics.analyzed_clips }}</div>
+        </div>
+        <div class="card">
+            <div class="label">Serien</div>
+            <div class="value">{{ play_view.highlights.total_series }}</div>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="card">
+            <div class="label">Explosive Plays</div>
+            <div class="value">{{ play_view.highlights.explosive_plays }}</div>
+        </div>
+        <div class="card">
+            <div class="label">Top Quarter</div>
+            <div class="value">{{ play_view.highlights.top_quarter }}</div>
+        </div>
+        <div class="card">
+            <div class="label">Top Outcome</div>
+            <div class="value">{{ play_view.highlights.top_result }}</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Executive Overview</h2>
+        <div class="quarter-grid">
+            {% for card in view_model.at_a_glance %}
+            <div class="card">
+                <div class="label">{{ card.title }}</div>
+                <div class="value" style="font-size: 12pt;">{{ card.value }}</div>
+                <div class="small">{{ card.detail }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="report-markdown">
+            {{ view_model.executive_html | safe }}
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Quarter Summary</h2>
+        <div class="quarter-grid">
+            {% for entry in play_view.quarter_summaries %}
+            <div class="card">
+                <div class="label">Q{{ entry.quarter }}</div>
+                <div class="value" style="font-size: 12pt;">{{ entry.play_count }} Plays</div>
+                <div class="small">{{ entry.top_type }} · {{ entry.top_result }} · Explosive {{ entry.explosive_count }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Series Breakdown</h2>
+        {% for entry in play_view.series_summaries %}
+        <div class="series-card">
+            <strong>{{ entry.label }}</strong><br>
+            <span class="small">{{ entry.play_count }} Plays · {{ entry.top_type }} · Start {{ entry.start_down }} · Ende {{ entry.end_result }}</span>
+            <div style="margin-top: 6px;">{{ entry.summary }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="section">
+        <h2>Play Timeline</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Play</th>
+                    <th>Situation</th>
+                    <th>Structure</th>
+                    <th>Defense</th>
+                    <th>Summary</th>
+                    <th>Outcome</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for play in play_view.plays %}
+                <tr>
+                    <td>#{{ play.play_number or play.clip_number or loop.index }}<br><span class="small">Q{{ play.quarter }} · Serie {{ play.series }}</span></td>
+                    <td>{{ play.down }} & {{ play.distance }}<br><span class="small">{{ play.field_position }} · {{ play.hash }}</span></td>
+                    <td>{{ play.play_type }}<br><span class="small">{{ play.formation }} · {{ play.personnel }}</span></td>
+                    <td>{{ play.front }}<br><span class="small">{{ play.coverage }} · {{ play.blitz }} · {{ play.pressure }}</span></td>
+                    <td>{{ play.summary }}</td>
+                    <td>{{ play.result }}<br><span class="small">{{ play.yards_gained if play.yards_gained is not none else 'n/a' }} Yds</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if view_model.detail_sections %}
+    <div class="section">
+        <h2>AI Play-by-Play Report</h2>
+        {% for section in view_model.detail_sections %}
+        <div class="series-card">
+            <strong>{{ section.title }}</strong>
+            <div class="report-markdown" style="margin-top: 8px;">{{ section.html | safe }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</body>
+</html>

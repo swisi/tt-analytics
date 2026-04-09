@@ -20,9 +20,6 @@ from ..services.gemini_analysis import analyze_clip_with_gemini, synthesize_repo
 bp = Blueprint("main", __name__)
 
 
-@bp.route("/health")
-def health():
-    return {"status": "ok"}, 200
 
 
 def require_login(endpoint="main.index"):

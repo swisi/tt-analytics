@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-analytics-secret")
+    SECRET_KEY = os.environ.get("SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = (
         os.environ.get("SQLALCHEMY_DATABASE_URI")
         or os.environ.get("DATABASE_URL")
@@ -28,3 +28,4 @@ class Config:
     GEMINI_MAX_RETRIES = int(os.environ.get("GEMINI_MAX_RETRIES", 8))
     GEMINI_RETRY_BUFFER_SECONDS = int(os.environ.get("GEMINI_RETRY_BUFFER_SECONDS", 5))
     GEMINI_RETRY_DEFAULT_SECONDS = int(os.environ.get("GEMINI_RETRY_DEFAULT_SECONDS", 60))
+    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")

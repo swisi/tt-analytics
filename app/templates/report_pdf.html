@@ -100,13 +100,20 @@
         }
         .section {
             margin-top: 18px;
-            break-inside: avoid;
         }
         .section-header {
             background: var(--bg-soft);
             border-radius: 12px;
             padding: 9px 12px;
             margin-bottom: 10px;
+            break-after: avoid-page;
+            page-break-after: avoid;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .section-lead {
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
         .section-title {
             color: var(--brand);
@@ -192,12 +199,15 @@
             border-radius: 14px;
             padding: 14px;
             margin-bottom: 12px;
-            break-inside: avoid;
+            break-inside: auto;
+            page-break-inside: auto;
         }
         .full-report-section h3 {
             color: var(--brand);
             font-size: 12pt;
             margin-bottom: 8px;
+            break-after: avoid-page;
+            page-break-after: avoid;
         }
     </style>
 </head>
@@ -226,18 +236,20 @@
     </div>
 
     <div class="section">
-        <div class="section-header">
-            <div class="section-title">Executive Overview</div>
-            <div class="section-subtitle">Verdichtete Coach-Zusammenfassung mit den wichtigsten Mustern.</div>
-        </div>
-        <div class="overview-grid">
-            {% for card in view_model.at_a_glance %}
-            <div class="card">
-                <div class="card-kicker">{{ card.title }}</div>
-                <div class="meta-value" style="font-size: 13pt; margin-top: 6px;">{{ card.value }}</div>
-                <div style="margin-top: 6px; color: var(--muted); font-size: 9pt;">{{ card.detail }}</div>
+        <div class="section-lead">
+            <div class="section-header">
+                <div class="section-title">Executive Overview</div>
+                <div class="section-subtitle">Verdichtete Coach-Zusammenfassung mit den wichtigsten Mustern.</div>
             </div>
-            {% endfor %}
+            <div class="overview-grid">
+                {% for card in view_model.at_a_glance %}
+                <div class="card">
+                    <div class="card-kicker">{{ card.title }}</div>
+                    <div class="meta-value" style="font-size: 13pt; margin-top: 6px;">{{ card.value }}</div>
+                    <div style="margin-top: 6px; color: var(--muted); font-size: 9pt;">{{ card.detail }}</div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
         <div class="card report-markdown">
             {{ view_model.executive_html | safe }}
@@ -245,9 +257,11 @@
     </div>
 
     <div class="section">
-        <div class="section-header">
-            <div class="section-title">Tendency Tables</div>
-            <div class="section-subtitle">Aggregierte Top-Muster aus den Clip-Analysen.</div>
+        <div class="section-lead">
+            <div class="section-header">
+                <div class="section-title">Tendency Tables</div>
+                <div class="section-subtitle">Aggregierte Top-Muster aus den Clip-Analysen.</div>
+            </div>
         </div>
         <div class="tables-grid">
             {% for table in table_sections %}
@@ -279,17 +293,28 @@
     </div>
 
     <div class="section">
-        <div class="section-header">
-            <div class="section-title">Full Report</div>
-            <div class="section-subtitle">Strukturierter Vollbericht auf Basis der AI-Teilsummaries.</div>
-        </div>
         {% for section in view_model.detail_sections %}
+        {% if loop.first %}
+        <div class="section-lead">
+            <div class="section-header">
+                <div class="section-title">Full Report</div>
+                <div class="section-subtitle">Strukturierter Vollbericht auf Basis der AI-Teilsummaries.</div>
+            </div>
+            <div class="full-report-section">
+                <h3>{{ section.title }}</h3>
+                <div class="report-markdown">
+                    {{ section.html | safe }}
+                </div>
+            </div>
+        </div>
+        {% else %}
         <div class="full-report-section">
             <h3>{{ section.title }}</h3>
             <div class="report-markdown">
                 {{ section.html | safe }}
             </div>
         </div>
+        {% endif %}
         {% endfor %}
     </div>
 </body>

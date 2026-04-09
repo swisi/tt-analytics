@@ -1,8 +1,10 @@
 import logging
+import secrets
 from urllib.parse import urljoin, urlparse
 
 import jwt
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+from werkzeug.security import generate_password_hash
 
 from ..extensions import db, limiter
 from ..models import User
@@ -78,7 +80,7 @@ def sso_login():
         if not current_app.config.get("SSO_AUTO_PROVISION_USERS", True):
             flash("SSO-Benutzer ist nicht freigeschaltet.", "danger")
             return redirect(url_for("auth.login"))
-        user = User(username=username, role=role, password_hash="sso-only")
+        user = User(username=username, role=role, password_hash=generate_password_hash(secrets.token_hex(32)))
         db.session.add(user)
         db.session.commit()
     elif current_app.config.get("SSO_SYNC_ROLE", True) and user.role != role:

@@ -19,6 +19,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Non-root user
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup --no-create-home appuser \
+    && mkdir -p /app/instance/uploads && chown -R appuser:appgroup /app
+USER appuser
+
 ENV FLASK_APP=run.py
 ENV PYTHONUNBUFFERED=1
 ENV TZ=Europe/Zurich

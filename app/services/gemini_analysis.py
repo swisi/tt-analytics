@@ -283,7 +283,56 @@ def _normalize_for_compare(value, kind):
     return coerced
 
 
-def _apply_breakdown_fallbacks(result, breakdown_payload):
+def _breakdown_odk_to_focus_value(raw_odk, analysis_run, output_kind="odk"):
+    odk = _coerce_string(raw_odk)
+    if not odk:
+        return None
+
+    normalized = odk.strip().upper()
+    if normalized.startswith("K"):
+        return "K" if output_kind == "odk" else "Special Teams"
+
+    game = analysis_run.game if analysis_run else None
+    focus_team = analysis_run.focus_team if analysis_run else None
+    home_team = game.home_team if game else None
+    focus_is_home = bool(focus_team and home_team and focus_team.id == home_team.id)
+
+    if normalized.startswith("O"):
+        if output_kind == "odk":
+            return "O" if focus_is_home else "D"
+        return "Offense" if focus_is_home else "Defense"
+
+    if normalized.startswith("D"):
+        if output_kind == "odk":
+            return "D" if focus_is_home else "O"
+        return "Defense" if focus_is_home else "Offense"
+
+    return None
+
+
+def _resolve_breakdown_value(spec, breakdown_payload, analysis_run):
+    if spec["name"] == "side_of_ball":
+        explicit_side = _first_breakdown_value(breakdown_payload, ("SIDE",))
+        if explicit_side not in ("", None):
+            return _coerce_value(explicit_side, spec["kind"])
+        return _breakdown_odk_to_focus_value(
+            _first_breakdown_value(breakdown_payload, ("ODK",)),
+            analysis_run,
+            output_kind="side_of_ball",
+        )
+
+    if spec["name"] == "odk":
+        return _breakdown_odk_to_focus_value(
+            _first_breakdown_value(breakdown_payload, ("ODK",)),
+            analysis_run,
+            output_kind="odk",
+        )
+
+    breakdown_raw = _first_breakdown_value(breakdown_payload, spec["keys"])
+    return _coerce_value(breakdown_raw, spec["kind"])
+
+
+def _apply_breakdown_fallbacks(result, breakdown_payload, analysis_run=None):
     breakdown_payload = breakdown_payload or {}
     field_specs = [
         {"name": "play_type", "path": ("play_type",), "keys": ("PLAY TYPE",), "kind": "string"},
@@ -322,8 +371,7 @@ def _apply_breakdown_fallbacks(result, breakdown_payload):
 
     for spec in field_specs:
         analysis_value = _get_nested(result, spec["path"])
-        breakdown_raw = _first_breakdown_value(breakdown_payload, spec["keys"])
-        breakdown_value = _coerce_value(breakdown_raw, spec["kind"])
+        breakdown_value = _resolve_breakdown_value(spec, breakdown_payload, analysis_run)
         analysis_missing = _is_missing_value(analysis_value)
         used_fallback = analysis_missing and breakdown_value is not None
 
@@ -404,7 +452,7 @@ def analyze_clip_with_gemini(config, clip, analysis_run, breakdown_payload):
 
     text = response.text or "{}"
     result = json.loads(text)
-    result = _apply_breakdown_fallbacks(result, breakdown_payload)
+    result = _apply_breakdown_fallbacks(result, breakdown_payload, analysis_run=analysis_run)
     return {
         "provider": "gemini",
         "model_name": model_name,

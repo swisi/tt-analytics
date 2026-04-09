@@ -36,7 +36,7 @@
                 <div>
                     <label for="breakdown_file" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Excel-Datei</label>
                     <input id="breakdown_file" name="breakdown_file" type="file" accept=".xlsx" class="block w-full text-sm text-slate-700 dark:text-slate-200 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-900/40 dark:file:text-indigo-300 dark:bg-slate-700 dark:border dark:border-slate-600 rounded-lg">
-                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Play-by-Play-Daten werden als zusätzlicher Kontext pro Clip gespeichert und später der AI mitgegeben.</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Play-by-Play-Daten werden als zusätzlicher Kontext pro Clip gespeichert. Kanonische Schlüsselfelder: <code>PLAY #</code>, <code>QTR</code>, <code>SERIES</code>, <code>DN</code>, <code>DIST</code>, <code>HASH</code>, <code>YARD LN</code>, <code>PLAY TYPE</code>. Varianten wie <code>DOWN</code>, <code>DISTANCE</code> oder <code>DRIVE</code> werden beim Import normalisiert.</p>
                 </div>
                 <button type="submit" class="w-full py-2.5 px-4 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition text-sm font-medium">
                     <i class="bi bi-file-earmark-spreadsheet mr-2"></i>Breakdown importieren
@@ -65,6 +65,8 @@
                     {% if breakdown %}
                     <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">
                         Breakdown: Play #{{ breakdown.payload_json.get('PLAY #', '-') }}
+                        {% if breakdown.payload_json.get('QTR') %} · Q{{ breakdown.payload_json.get('QTR') }}{% endif %}
+                        {% if breakdown.payload_json.get('SERIES') %} · Serie {{ breakdown.payload_json.get('SERIES') }}{% endif %}
                         {% if breakdown.payload_json.get('DN') %} · Down {{ breakdown.payload_json.get('DN') }}{% endif %}
                         {% if breakdown.payload_json.get('DIST') %} & {{ breakdown.payload_json.get('DIST') }}{% endif %}
                         {% if breakdown.payload_json.get('PLAY TYPE') %} · {{ breakdown.payload_json.get('PLAY TYPE') }}{% endif %}

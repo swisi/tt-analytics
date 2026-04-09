@@ -2,12 +2,13 @@ import re
 from collections import Counter
 from datetime import datetime
 from itertools import groupby
+from io import BytesIO
 from pathlib import Path
 import threading
 from uuid import uuid4
 
 import markdown as md
-from flask import Blueprint, current_app, flash, make_response, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, make_response, redirect, render_template, request, send_file, session, url_for
 from sqlalchemy import or_
 from sqlalchemy.orm.exc import ObjectDeletedError
 from werkzeug.utils import secure_filename
@@ -15,7 +16,7 @@ from weasyprint import HTML
 
 from ..extensions import db
 from ..models import AnalysisRun, Clip, ClipAnalysis, ClipMetadata, Game, Report, ReportRun, Season, Team
-from ..services.breakdown_import import parse_xlsx_rows
+from ..services.breakdown_import import CANONICAL_BREAKDOWN_COLUMNS, build_breakdown_xlsx_bytes, normalize_breakdown_row, parse_xlsx_rows
 from ..services.gemini_analysis import analyze_clip_with_gemini, synthesize_play_by_play_report_with_gemini, synthesize_report_with_gemini
 
 bp = Blueprint("main", __name__)
@@ -247,6 +248,28 @@ def _stringify(value, fallback="n/a"):
     return str(value).strip() or fallback
 
 
+def _empty_if_placeholder(value, placeholders=None):
+    placeholder_values = {"", None, "n/a", "unknown", "unk", "none", "null", "-", "tbd"}
+    if placeholders:
+        placeholder_values.update(item.casefold() for item in placeholders if isinstance(item, str))
+
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if not text:
+        return ""
+    if text.casefold() in placeholder_values:
+        return ""
+    return text
+
+
+def _analysis_first(primary, fallback=None, placeholders=None):
+    primary_value = _empty_if_placeholder(primary, placeholders=placeholders)
+    if primary_value:
+        return primary_value
+    return _empty_if_placeholder(fallback, placeholders=placeholders)
+
+
 def _breakdown_payload_for_analysis(analysis):
     if not analysis.clip:
         return {}
@@ -254,7 +277,7 @@ def _breakdown_payload_for_analysis(analysis):
         (item for item in analysis.clip.metadata_entries if item.source_kind == "breakdown_excel"),
         None,
     )
-    return breakdown.payload_json if breakdown else {}
+    return normalize_breakdown_row(breakdown.payload_json if breakdown else {})
 
 
 def _build_play_entry(run, analysis):
@@ -264,21 +287,36 @@ def _build_play_entry(run, analysis):
     outcome = payload.get("outcome") or {}
     breakdown = _breakdown_payload_for_analysis(analysis)
 
-    quarter = _first_non_empty(breakdown, ("QTR", "QUARTER", "PERIOD"))
-    series = _first_non_empty(breakdown, ("SERIES", "DRIVE", "POSSESSION"))
-    down = _first_non_empty(breakdown, ("DN", "DOWN"))
-    distance = _first_non_empty(breakdown, ("DIST", "DISTANCE"))
-    field_position = _first_non_empty(breakdown, ("YARD LN", "YARDLINE", "FIELD POSITION"))
-    hash_value = _first_non_empty(breakdown, ("HASH",))
-    breakdown_play_type = _first_non_empty(breakdown, ("PLAY TYPE", "PLAY_TYPE"))
+    game_state = payload.get("game_state") or {}
+    quarter = _analysis_first(game_state.get("quarter"), breakdown.get("QTR"))
+    series = _analysis_first(game_state.get("series"), breakdown.get("SERIES"))
+    down = _analysis_first(game_state.get("down"), breakdown.get("DN"))
+    distance = _analysis_first(game_state.get("distance"), breakdown.get("DIST"))
+    field_position = _analysis_first(game_state.get("yard_line"), breakdown.get("YARD LN"))
+    hash_value = _analysis_first(game_state.get("hash"), breakdown.get("HASH"))
+    breakdown_play_type = breakdown.get("PLAY TYPE")
     play_number = (
-        payload.get("play_number")
-        or _safe_int(_first_non_empty(breakdown, ("PLAY #", "PLAY#", "PLAY NO", "PLAY NUMBER")))
+        _safe_int(breakdown.get("PLAY #"))
         or _safe_int(analysis.clip.external_play_number if analysis.clip else None)
         or analysis.clip.clip_number
+        or payload.get("play_number")
     )
     yards_gained = outcome.get("yards_gained")
     explosive = isinstance(yards_gained, int) and abs(yards_gained) >= 12
+    summary = _analysis_first(payload.get("summary"), breakdown.get("SUMMARY"), placeholders={"Keine Zusammenfassung"})
+    play_type = _analysis_first(payload.get("play_type"), breakdown_play_type)
+    side_of_ball = _analysis_first(payload.get("side_of_ball"), breakdown.get("SIDE"))
+    result = _analysis_first(outcome.get("result"), breakdown.get("RESULT"))
+    formation = _analysis_first(offense.get("formation"), breakdown.get("FORMATION"))
+    personnel = _analysis_first(offense.get("personnel"), breakdown.get("PERSONNEL"))
+    motion = _analysis_first(offense.get("motion"), breakdown.get("MOTION"))
+    play_direction = _analysis_first(offense.get("play_direction"), breakdown.get("PLAY DIR"))
+    front = _analysis_first(defense.get("front"), breakdown.get("FRONT"))
+    coverage = _analysis_first(defense.get("coverage"), breakdown.get("COVERAGE"))
+    blitz = _analysis_first(defense.get("blitz"), breakdown.get("BLITZ"))
+    pressure = _analysis_first(defense.get("pressure"), breakdown.get("PRESSURE"))
+    field_zone = _analysis_first(outcome.get("field_zone"), breakdown.get("FIELD ZONE"))
+    situation = _analysis_first(outcome.get("situation"), breakdown.get("SITUATION"))
 
     return {
         "run_id": run.id,
@@ -289,6 +327,7 @@ def _build_play_entry(run, analysis):
         "clip_id": analysis.clip.id if analysis.clip else None,
         "clip_number": analysis.clip.clip_number if analysis.clip else None,
         "play_number": play_number,
+        "external_play_number": analysis.clip.external_play_number if analysis.clip else None,
         "quarter": _stringify(quarter),
         "quarter_num": _safe_int(quarter) or 99,
         "series": _stringify(series),
@@ -298,21 +337,21 @@ def _build_play_entry(run, analysis):
         "distance": _stringify(distance),
         "field_position": _stringify(field_position),
         "hash": _stringify(hash_value),
-        "play_type": _normalize_bucket_value(payload.get("play_type") or breakdown_play_type, "play_type") or "Unknown",
-        "side_of_ball": _normalize_bucket_value(payload.get("side_of_ball"), "side_of_ball") or "Unknown",
-        "summary": _stringify(payload.get("summary"), fallback="Keine Zusammenfassung"),
-        "formation": _normalize_bucket_value(offense.get("formation"), "formation") or "n/a",
-        "personnel": _normalize_bucket_value(offense.get("personnel"), "personnel") or "n/a",
-        "motion": _stringify(offense.get("motion")),
-        "play_direction": _stringify(offense.get("play_direction")),
-        "front": _normalize_bucket_value(defense.get("front"), "front") or "n/a",
-        "coverage": _normalize_bucket_value(defense.get("coverage"), "coverage") or "n/a",
-        "blitz": _normalize_bucket_value(defense.get("blitz"), "blitz") or "n/a",
-        "pressure": _normalize_bucket_value(defense.get("pressure"), "pressure") or "n/a",
-        "result": _normalize_bucket_value(outcome.get("result"), "result") or "Unknown",
+        "play_type": _normalize_bucket_value(play_type, "play_type") or "Unknown",
+        "side_of_ball": _normalize_bucket_value(side_of_ball, "side_of_ball") or "Unknown",
+        "summary": _stringify(summary, fallback="Keine Zusammenfassung"),
+        "formation": _normalize_bucket_value(formation, "formation") or "n/a",
+        "personnel": _normalize_bucket_value(personnel, "personnel") or "n/a",
+        "motion": _stringify(motion),
+        "play_direction": _stringify(play_direction),
+        "front": _normalize_bucket_value(front, "front") or "n/a",
+        "coverage": _normalize_bucket_value(coverage, "coverage") or "n/a",
+        "blitz": _normalize_bucket_value(blitz, "blitz") or "n/a",
+        "pressure": _normalize_bucket_value(pressure, "pressure") or "n/a",
+        "result": _normalize_bucket_value(result, "result") or "Unknown",
         "yards_gained": yards_gained,
-        "field_zone": _stringify(outcome.get("field_zone")),
-        "situation": _stringify(outcome.get("situation")),
+        "field_zone": _stringify(field_zone),
+        "situation": _stringify(situation),
         "notes": [note.strip() for note in (payload.get("notes") or []) if str(note).strip()],
         "explosive": explosive,
         "breakdown": breakdown,
@@ -426,6 +465,45 @@ def _build_play_by_play_view(report, plays, request_args=None):
             "top_result": result_counter.most_common(1)[0][0] if result_counter else "Unknown",
         },
     }
+
+
+def _build_breakdown_export_rows(report, plays):
+    rows = []
+    for play in plays:
+        breakdown = normalize_breakdown_row(play.get("breakdown") or {})
+        summary = _empty_if_placeholder(play.get("summary"), placeholders={"Keine Zusammenfassung"})
+        motion = _empty_if_placeholder(play.get("motion"))
+        play_direction = _empty_if_placeholder(play.get("play_direction"))
+        yards_gained = play.get("yards_gained")
+        rows.append(
+            {
+                "PLAY #": breakdown.get("PLAY #") or play.get("external_play_number") or play.get("play_number") or "",
+                "QTR": _analysis_first("" if play.get("quarter") == "n/a" else play.get("quarter"), breakdown.get("QTR")),
+                "SERIES": _analysis_first("" if play.get("series") == "n/a" else play.get("series"), breakdown.get("SERIES")),
+                "DN": _analysis_first("" if play.get("down") == "n/a" else play.get("down"), breakdown.get("DN")),
+                "DIST": _analysis_first("" if play.get("distance") == "n/a" else play.get("distance"), breakdown.get("DIST")),
+                "HASH": _analysis_first("" if play.get("hash") == "n/a" else play.get("hash"), breakdown.get("HASH")),
+                "YARD LN": _analysis_first("" if play.get("field_position") == "n/a" else play.get("field_position"), breakdown.get("YARD LN")),
+                "SIDE": _analysis_first("" if play.get("side_of_ball") == "Unknown" else play.get("side_of_ball"), breakdown.get("SIDE")),
+                "PLAY TYPE": _analysis_first("" if play.get("play_type") == "Unknown" else play.get("play_type"), breakdown.get("PLAY TYPE")),
+                "RESULT": _analysis_first("" if play.get("result") == "Unknown" else play.get("result"), breakdown.get("RESULT")),
+                "YDS": yards_gained if yards_gained is not None else _empty_if_placeholder(breakdown.get("YDS")),
+                "FORMATION": _analysis_first("" if play.get("formation") == "n/a" else play.get("formation"), breakdown.get("FORMATION")),
+                "PERSONNEL": _analysis_first("" if play.get("personnel") == "n/a" else play.get("personnel"), breakdown.get("PERSONNEL")),
+                "MOTION": _analysis_first(motion, breakdown.get("MOTION")),
+                "PLAY DIR": _analysis_first(play_direction, breakdown.get("PLAY DIR")),
+                "FRONT": _analysis_first("" if play.get("front") == "n/a" else play.get("front"), breakdown.get("FRONT")),
+                "COVERAGE": _analysis_first("" if play.get("coverage") == "n/a" else play.get("coverage"), breakdown.get("COVERAGE")),
+                "BLITZ": _analysis_first("" if play.get("blitz") == "n/a" else play.get("blitz"), breakdown.get("BLITZ")),
+                "PRESSURE": _analysis_first("" if play.get("pressure") == "n/a" else play.get("pressure"), breakdown.get("PRESSURE")),
+                "SUMMARY": _analysis_first(summary, breakdown.get("SUMMARY"), placeholders={"Keine Zusammenfassung"}),
+                "CLIP #": play.get("clip_number") or "",
+                "GAME": report.title if report.report_type == "self_scout" else play.get("game") or "",
+                "FOCUS TEAM": play.get("focus_team") or report.focus_team.name,
+                "ANALYSIS MODE": play.get("analysis_mode") or "",
+            }
+        )
+    return rows
 
 
 def _collect_report_metrics(report):
@@ -1206,6 +1284,26 @@ def report_pdf(report_id):
     return _build_pdf_response(report, metrics)
 
 
+@bp.route("/reports/<int:report_id>/breakdown.xlsx")
+def report_breakdown_xlsx(report_id):
+    login_redirect = require_login("main.reports")
+    if login_redirect:
+        return login_redirect
+
+    report = Report.query.get_or_404(report_id)
+    plays = _collect_report_plays(report)
+    rows = _build_breakdown_export_rows(report, plays)
+    workbook = build_breakdown_xlsx_bytes(rows, headers=CANONICAL_BREAKDOWN_COLUMNS)
+    safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", (report.title or f"report_{report.id}").strip()).strip("_")
+    filename = f"{safe_title or f'report_{report.id}'}_breakdown.xlsx"
+    return send_file(
+        BytesIO(workbook),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
 @bp.route("/reports/<int:report_id>/generate", methods=["POST"])
 def generate_report(report_id):
     login_redirect = require_login("main.reports")
@@ -1327,12 +1425,14 @@ def import_breakdown(game_id):
     unmatched = 0
 
     for row in rows:
-        play_number = str(row.get("PLAY #", "")).strip()
+        normalized_row = normalize_breakdown_row(row)
+        play_number = str(normalized_row.get("PLAY #", "")).strip()
         if not play_number:
             unmatched += 1
             continue
 
-        clip = Clip.query.filter_by(game_id=game.id, clip_number=int(play_number) if play_number.isdigit() else None).first()
+        clip_number = _safe_int(play_number)
+        clip = Clip.query.filter_by(game_id=game.id, clip_number=clip_number if clip_number is not None else None).first()
         if not clip:
             clip = Clip.query.filter_by(game_id=game.id, external_play_number=play_number).first()
         if not clip:
@@ -1342,10 +1442,10 @@ def import_breakdown(game_id):
         clip.external_play_number = play_number
         metadata = ClipMetadata.query.filter_by(clip_id=clip.id, source_kind="breakdown_excel").first()
         if not metadata:
-            metadata = ClipMetadata(clip_id=clip.id, source_kind="breakdown_excel", payload_json=row)
+            metadata = ClipMetadata(clip_id=clip.id, source_kind="breakdown_excel", payload_json=normalized_row)
             db.session.add(metadata)
         else:
-            metadata.payload_json = row
+            metadata.payload_json = normalized_row
         matched += 1
 
     db.session.commit()

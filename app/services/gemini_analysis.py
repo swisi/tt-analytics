@@ -102,6 +102,10 @@ def _build_prompt(clip, analysis_run, breakdown_payload):
     focus_team = analysis_run.focus_team.name
     home_team = game.home_team.name if game.home_team else "Unknown"
     away_team = game.away_team.name if game.away_team else "Unknown"
+    focus_is_home = bool(game.home_team and analysis_run.focus_team and game.home_team.id == analysis_run.focus_team.id)
+    focus_role = "Home team" if focus_is_home else "Away team"
+    opponent_team = away_team if focus_is_home else home_team
+    run_notes = (analysis_run.notes or "").strip()
 
     prompt = f"""
 You are an American Football video analyst.
@@ -113,6 +117,8 @@ Game teams:
 
 Focus team for this analysis:
 - {focus_team}
+- Focus team role in this game: {focus_role}
+- Opponent team for this run: {opponent_team}
 
 Analysis mode:
 - {analysis_run.analysis_mode}
@@ -122,9 +128,22 @@ Important rules:
 - If something is unclear from the video, set the field to null and mention uncertainty in notes.
 - Prefer observations from the video over spreadsheet context if they conflict.
 - Keep the summary short and coach-friendly.
+- Do not assign the action to a specific team in the summary unless the clip or scoreboard makes that explicit.
+- On special teams plays, do not infer the kicking or punting team from the focus team alone; if ownership is unclear, use neutral wording such as "kickoff return play" or "punt play".
+- Write the summary from the focus-team perspective. If side_of_ball is "Offense", the summary must describe the focus team as the offense. If side_of_ball is "Defense", the summary must describe the focus team as the defense.
+- Team identification matters more than detailed technique. First identify whether the focus team is on the field as offense, defense, or special teams.
+- Use all reliable cues to identify the focus team: scoreboard abbreviations, home/away context, jersey color, helmet color, sideline location, end zone logos, and any run-specific hints.
+- If the focus team cannot be identified confidently from the clip, keep the summary neutral and mention the uncertainty in notes instead of guessing the team.
 - Prioritize a practical tagging output that can later be exported into a Hudl-style playlist sheet.
 - QTR and outcome.result are especially important. Fill them when they are visible or directly inferable from the clip context; otherwise leave them null.
 """.strip()
+
+    if run_notes:
+        prompt += "\n\nRun-specific team identification hints:\n"
+        for line in run_notes.splitlines():
+            cleaned = line.strip()
+            if cleaned:
+                prompt += f"- {cleaned}\n"
 
     if analysis_run.analysis_mode == "play_by_play":
         prompt += "\n\n" + """
@@ -142,6 +161,8 @@ For play_by_play mode:
         for key, value in breakdown_payload.items():
             if value not in ("", None):
                 prompt += f"- {key}: {value}\n"
+        if _first_breakdown_value(breakdown_payload, ("ODK",)):
+            prompt += "- ODK from breakdown is authoritative for the focus-team perspective and side of ball.\n"
 
     prompt += "\n\n" + """
 Field guidance:
@@ -152,6 +173,7 @@ Field guidance:
 - game_state.yard_line: preserve the broadcast/charting style if visible, for example "-15", "45", "Own 25", or null.
 - game_state.hash: use "L", "M", "R" when visible; otherwise null.
 - side_of_ball: "Offense", "Defense", or "Special Teams" from the perspective of the focus team, not simply the team currently holding the ball.
+- For Special Teams, be careful: side_of_ball is from the focus-team perspective and does not by itself identify which team kicked, punted, or returned.
 - play_type: short coach-friendly tag such as "Run", "Pass", "Punt", "Kickoff Return", "Punt Return", "Field Goal".
 - outcome.result: concise football result such as "Completion", "Incomplete", "Touchdown", "First Down", "Short Gain", "Tackle For Loss", "Sack", "Kickoff Return".
 - outcome.yards_gained: signed integer when visible or directly inferable, else null.
@@ -281,6 +303,95 @@ def _normalize_for_compare(value, kind):
     if kind == "string":
         return str(coerced).strip().casefold()
     return coerced
+
+
+def _ordinal_down(value):
+    down = _coerce_int(value)
+    if down == 1:
+        return "1st"
+    if down == 2:
+        return "2nd"
+    if down == 3:
+        return "3rd"
+    if down == 4:
+        return "4th"
+    return None
+
+
+def _normalize_play_type_for_summary(value):
+    raw = _coerce_string(value)
+    if not raw:
+        return None
+    aliases = {
+        "ko rec": "Kickoff Return",
+        "kickoff rec": "Kickoff Return",
+        "punt rec": "Punt Return",
+        "fg": "Field Goal",
+        "pat": "Extra Point",
+    }
+    normalized = aliases.get(raw.casefold())
+    if normalized:
+        return normalized
+    return raw
+
+
+def _build_focus_aligned_summary(result, analysis_run, breakdown_payload):
+    focus_team = analysis_run.focus_team.name if analysis_run and analysis_run.focus_team else None
+    if not focus_team:
+        return _coerce_string((result or {}).get("summary"))
+
+    game_state = (result or {}).get("game_state") or {}
+    outcome = (result or {}).get("outcome") or {}
+    offense = (result or {}).get("offense") or {}
+
+    side_of_ball = _coerce_string((result or {}).get("side_of_ball"))
+    play_type = _normalize_play_type_for_summary(_first_breakdown_value(breakdown_payload, ("PLAY TYPE",)) or (result or {}).get("play_type"))
+    result_label = _coerce_string(outcome.get("result")) or _coerce_string(_first_breakdown_value(breakdown_payload, ("RESULT",)))
+    play_direction = _coerce_string(offense.get("play_direction")) or _coerce_string(_first_breakdown_value(breakdown_payload, ("PLAY DIR",)))
+    down = _ordinal_down(game_state.get("down") or _first_breakdown_value(breakdown_payload, ("DN",)))
+    distance = _coerce_int(game_state.get("distance") or _first_breakdown_value(breakdown_payload, ("DIST",)))
+    yard_line = _coerce_string(game_state.get("yard_line")) or _coerce_string(_first_breakdown_value(breakdown_payload, ("YARD LN",)))
+    yards_gained = _coerce_int(outcome.get("yards_gained") or _first_breakdown_value(breakdown_payload, ("YDS", "GN/LS")))
+
+    lead_parts = []
+    if down and distance is not None:
+        lead_parts.append(f"{down} & {distance}")
+    elif down:
+        lead_parts.append(down)
+    if yard_line:
+        lead_parts.append(f"at the {yard_line}")
+    lead = f"{' '.join(lead_parts)}: " if lead_parts else ""
+
+    perspective = ""
+    if side_of_ball == "Offense":
+        perspective = f"{focus_team} offense"
+    elif side_of_ball == "Defense":
+        perspective = f"{focus_team} defense"
+    elif side_of_ball == "Special Teams":
+        perspective = f"{focus_team} special teams"
+
+    if not perspective:
+        return _coerce_string((result or {}).get("summary"))
+
+    if play_type in {"Kickoff", "Kickoff Return", "Punt", "Punt Return", "Field Goal", "Extra Point"}:
+        if result_label and result_label.casefold() != play_type.casefold():
+            return f"{lead}{perspective} {play_type}; result: {result_label}."
+        if play_type:
+            return f"{lead}{perspective} {play_type}."
+        return f"{lead}{perspective} special teams play."
+
+    detail_parts = [part for part in (perspective, play_type) if part]
+    if play_direction:
+        detail_parts.append(play_direction.lower())
+    sentence = " ".join(detail_parts).strip()
+    if result_label:
+        sentence += f", result: {result_label.lower()}"
+    if yards_gained is not None:
+        yard_label = "yard" if abs(yards_gained) == 1 else "yards"
+        sentence += f" for {yards_gained} {yard_label}"
+    if sentence:
+        return f"{lead}{sentence}."
+    return _coerce_string((result or {}).get("summary"))
 
 
 def _breakdown_odk_to_focus_value(raw_odk, analysis_run, output_kind="odk"):
@@ -456,6 +567,10 @@ def analyze_clip_with_gemini(config, clip, analysis_run, breakdown_payload):
     text = response.text or "{}"
     result = json.loads(text)
     result = _apply_breakdown_fallbacks(result, breakdown_payload, analysis_run=analysis_run)
+    if _first_breakdown_value(breakdown_payload, ("ODK",)):
+        focus_aligned_summary = _build_focus_aligned_summary(result, analysis_run, breakdown_payload)
+        if focus_aligned_summary:
+            result["summary"] = focus_aligned_summary
     return {
         "provider": "gemini",
         "model_name": model_name,

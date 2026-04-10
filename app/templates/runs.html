@@ -38,8 +38,9 @@
                 </select>
             </div>
             <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Notizen</label>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Identifikationshinweise</label>
                 <textarea name="notes" rows="3" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm"></textarea>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Diese Hinweise gehen direkt in den AI-Prompt. Beispiel: "Bern Grizzlies = schwarze Jerseys, weisse Hosen; Geneva = weisse Jerseys".</p>
             </div>
             <label class="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
                 <input type="checkbox" name="start_now" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
@@ -61,9 +62,9 @@
             {% for run in runs %}
             <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <div class="font-medium text-slate-900 dark:text-white">{{ run.game.label }}</div>
+                    <div class="font-medium text-slate-900 dark:text-white">Run {{ run.id }} · {{ run.game.label }}</div>
                     <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ run.game.home_team.name if run.game.home_team else 'Unbekannt' }} vs. {{ run.game.away_team.name if run.game.away_team else 'Unbekannt' }}</div>
-                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Fokus: {{ run.focus_team.name }} · {{ run.analysis_mode }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Run {{ run.id }} · Fokus: {{ run.focus_team.name }} · {{ run.analysis_mode }}</div>
                     <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Clips: {{ run.processed_clips }}/{{ run.total_clips }} {% if run.failed_clips %}· Fehler: {{ run.failed_clips }}{% endif %}</div>
                     {% if run.notes %}
                     <div class="text-sm text-slate-500 dark:text-slate-400 mt-2">{{ run.notes }}</div>

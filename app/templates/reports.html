@@ -2,17 +2,35 @@
 {% block title %}Reports – Tigers Analytics{% endblock %}
 
 {% block content %}
-<div class="mb-8">
-    <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Reports</h1>
-    <p class="text-slate-500 dark:text-slate-400 mt-2">Ein Report aggregiert mehrere Runs für dasselbe Fokus-Team über ein oder mehrere Spiele. Play-by-Play basiert auf genau einem Run.</p>
+<div class="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Reports</h1>
+        <p class="text-slate-500 dark:text-slate-400 mt-2">Ein Report aggregiert mehrere Runs für dasselbe Fokus-Team über ein oder mehrere Spiele. Play-by-Play basiert auf genau einem Run.</p>
+    </div>
+    <button
+        type="button"
+        id="toggleReportForm"
+        class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-xl transition shadow-md hover:shadow-lg"
+    >
+        <i class="bi bi-file-earmark-plus"></i>Neuen Report erstellen
+    </button>
 </div>
 
-<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-    <section class="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
-        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Neuer Report</h2>
-        <form method="post" action="{{ url_for('main.reports') }}" class="space-y-4">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div>
+<section id="reportCreatePanel" class="hidden mb-6 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+    <div class="flex items-start justify-between gap-4 mb-5">
+        <div>
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Neuer Report</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Wähle die passenden Analyse-Runs. Die Run-ID ist direkt sichtbar, damit du laufende und abgeschlossene Runs unterscheiden kannst.</p>
+        </div>
+        <button type="button" id="closeReportForm" class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+
+    <form method="post" action="{{ url_for('main.reports') }}" class="space-y-5">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+            <div class="xl:col-span-2">
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Titel</label>
                 <input name="title" type="text" required class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm" placeholder="z. B. Scouting Report Genf oder Play by Play vs. Genf">
             </div>
@@ -25,76 +43,165 @@
                     <option value="play_by_play">Play by Play</option>
                 </select>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Analyse-Runs</label>
-                <div class="max-h-80 overflow-auto space-y-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-                    {% for run in available_runs %}
-                    <label class="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
-                        <input type="checkbox" name="run_ids" value="{{ run.id }}" class="mt-1 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-                        <span>
-                            <strong>{{ run.focus_team.name }}</strong> · {{ run.game.label }}<br>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Analyse-Runs</label>
+            <div class="max-h-[28rem] overflow-auto rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700">
+                {% for run in available_runs %}
+                <label class="flex items-start gap-3 p-4 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900/30 transition">
+                    <input type="checkbox" name="run_ids" value="{{ run.id }}" class="mt-1 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    <span class="min-w-0 flex-1">
+                        <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <strong class="text-slate-900 dark:text-slate-100">Run {{ run.id }}</strong>
+                            <span class="px-2 py-0.5 text-[11px] font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full">{{ run.status }}</span>
                             <span class="text-slate-500 dark:text-slate-400">{{ run.analysis_mode }}</span>
                         </span>
-                    </label>
-                    {% else %}
-                    <p class="text-sm text-slate-500 dark:text-slate-400">Noch keine Runs verfügbar.</p>
-                    {% endfor %}
-                </div>
+                        <span class="block mt-1 text-slate-700 dark:text-slate-200">{{ run.focus_team.name }} · {{ run.game.label }}</span>
+                        <span class="block mt-1 text-xs text-slate-500 dark:text-slate-400">Clips {{ run.processed_clips }}/{{ run.total_clips }}{% if run.notes %} · {{ run.notes|truncate(140) }}{% endif %}</span>
+                    </span>
+                </label>
+                {% else %}
+                <p class="p-4 text-sm text-slate-500 dark:text-slate-400">Noch keine Runs verfügbar.</p>
+                {% endfor %}
             </div>
-            <button type="submit" class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg text-sm">
-                <i class="bi bi-file-earmark-plus mr-2"></i>Report anlegen
-            </button>
-        </form>
-    </section>
-
-    <section class="xl:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Aktuelle Reports</h2>
-            <span class="text-sm text-slate-500 dark:text-slate-400">{{ reports|length }} Einträge</span>
         </div>
-        {% if reports %}
-        <div class="space-y-3">
+
+        <div class="flex justify-end">
+            <button type="submit" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-xl transition shadow-md hover:shadow-lg text-sm">
+                <i class="bi bi-file-earmark-plus"></i>Report anlegen
+            </button>
+        </div>
+    </form>
+</section>
+
+<section class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-5">
+        <div>
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Aktuelle Reports</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Filtere nach Typ, Fokus-Team oder Status. Die Reports werden als kompakte Liste ohne Inhaltsvorschau angezeigt.</p>
+        </div>
+        <span class="text-sm text-slate-500 dark:text-slate-400">{{ reports|length }} Einträge</span>
+    </div>
+
+    <form method="get" action="{{ url_for('main.reports') }}" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 mb-5">
+        <div class="xl:col-span-2">
+            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Suche</label>
+            <input type="text" name="query" value="{{ filters.query }}" placeholder="Titel suchen" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Typ</label>
+            <select name="report_type" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                <option value="">Alle</option>
+                {% for key, label in report_type_labels.items() %}
+                <option value="{{ key }}" {% if filters.report_type == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Fokus-Team</label>
+            <select name="focus_team_id" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                <option value="">Alle</option>
+                {% for team in focus_teams %}
+                <option value="{{ team.id }}" {% if filters.focus_team_id == team.id|string %}selected{% endif %}>{{ team.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Status / Sortierung</label>
+            <div class="grid grid-cols-2 gap-2">
+                <select name="status" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                    <option value="">Alle</option>
+                    {% for status in statuses %}
+                    <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+                    {% endfor %}
+                </select>
+                <select name="sort" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
+                    <option value="newest" {% if filters.sort == 'newest' %}selected{% endif %}>Neueste</option>
+                    <option value="oldest" {% if filters.sort == 'oldest' %}selected{% endif %}>Älteste</option>
+                    <option value="title_asc" {% if filters.sort == 'title_asc' %}selected{% endif %}>Titel A-Z</option>
+                    <option value="title_desc" {% if filters.sort == 'title_desc' %}selected{% endif %}>Titel Z-A</option>
+                </select>
+            </div>
+        </div>
+        <div class="md:col-span-2 xl:col-span-5 flex flex-wrap items-center justify-end gap-2">
+            <a href="{{ url_for('main.reports') }}" class="px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition">Reset</a>
+            <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-lg transition">Filter anwenden</button>
+        </div>
+    </form>
+
+    {% if reports %}
+    <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+        <div class="hidden lg:grid lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] gap-4 px-4 py-3 bg-slate-50 dark:bg-slate-900/40 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <div>Report</div>
+            <div>Typ / Status</div>
+            <div>Fokus-Team</div>
+            <div>Analyse-Runs</div>
+            <div>Aktionen</div>
+        </div>
+        <div class="divide-y divide-slate-200 dark:divide-slate-700">
             {% for report in reports %}
-            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col gap-3">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        <div class="font-medium text-slate-900 dark:text-white">{{ report.title }}</div>
-                        <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Fokus: {{ report.focus_team.name }} · {{ report.report_type }}</div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="px-2 py-0.5 text-xs font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full">{{ report.status }}</span>
-                        <a href="{{ url_for('main.report_detail', report_id=report.id) }}" class="px-3 py-2 text-sm font-medium text-indigo-700 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition">
-                            <i class="bi bi-eye mr-1"></i>Öffnen
-                        </a>
-                        <form method="post" action="{{ url_for('main.delete_report', report_id=report.id) }}" onsubmit="return confirm('Report wirklich löschen?');">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <button type="submit" class="px-3 py-2 text-sm font-medium text-red-600 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition">
-                                <i class="bi bi-trash mr-1"></i>Löschen
-                            </button>
-                        </form>
+            <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] gap-4 px-4 py-4 items-start">
+                <div>
+                    <div class="font-semibold text-slate-900 dark:text-white">Report {{ report.id }} · {{ report.title }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        Erstellt {{ report.created_at.strftime('%d.%m.%Y %H:%M') if report.created_at else '-' }}
                     </div>
                 </div>
-                {% if report.summary %}
-                <pre class="whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-xl p-4">{{ report.summary }}</pre>
-                {% endif %}
-                <div class="text-sm text-slate-500 dark:text-slate-400">
-                    Enthaltene Runs:
+                <div class="text-sm text-slate-700 dark:text-slate-300">
+                    <div>{{ report_type_labels.get(report.report_type, report.report_type) }}</div>
+                    <div class="mt-1">
+                        <span class="px-2 py-0.5 text-xs font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full">{{ report.status }}</span>
+                    </div>
+                </div>
+                <div class="text-sm text-slate-700 dark:text-slate-300">{{ report.focus_team.name }}</div>
+                <div class="text-sm text-slate-700 dark:text-slate-300">
                     {% for entry in report.runs %}
-                        {{ entry.analysis_run.game.label }}{% if not loop.last %}, {% endif %}
+                    <div>Run {{ entry.analysis_run.id }} · {{ entry.analysis_run.game.label }}</div>
+                    {% else %}
+                    <div class="text-slate-500 dark:text-slate-400">Keine Runs</div>
                     {% endfor %}
+                </div>
+                <div class="flex flex-wrap items-center gap-2 lg:justify-end">
+                    <a href="{{ url_for('main.report_detail', report_id=report.id) }}" class="px-3 py-2 text-sm font-medium text-indigo-700 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition">
+                        <i class="bi bi-eye mr-1"></i>Öffnen
+                    </a>
+                    <form method="post" action="{{ url_for('main.delete_report', report_id=report.id) }}" onsubmit="return confirm('Report wirklich löschen?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="px-3 py-2 text-sm font-medium text-red-600 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition">
+                            <i class="bi bi-trash mr-1"></i>Löschen
+                        </button>
+                    </form>
                 </div>
             </div>
             {% endfor %}
         </div>
-        {% else %}
-        <div class="flex flex-col items-center justify-center py-12 text-center">
-            <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
-                <i class="bi bi-file-earmark-text text-slate-400 text-4xl"></i>
-            </div>
-            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Reports erstellt</h3>
-            <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Wähle mehrere Runs für dasselbe Fokus-Team und fasse sie zu einem Report zusammen.</p>
+    </div>
+    {% else %}
+    <div class="flex flex-col items-center justify-center py-12 text-center">
+        <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
+            <i class="bi bi-file-earmark-text text-slate-400 text-4xl"></i>
         </div>
-        {% endif %}
-    </section>
-</div>
+        <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Keine Reports gefunden</h3>
+        <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Passe die Filter an oder lege oben einen neuen Report an.</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const reportCreatePanel = document.getElementById('reportCreatePanel');
+    const toggleReportFormButton = document.getElementById('toggleReportForm');
+    const closeReportFormButton = document.getElementById('closeReportForm');
+
+    function toggleReportForm(forceOpen = null) {
+        const shouldOpen = forceOpen === null ? reportCreatePanel.classList.contains('hidden') : forceOpen;
+        reportCreatePanel.classList.toggle('hidden', !shouldOpen);
+        toggleReportFormButton.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+    }
+
+    toggleReportFormButton.addEventListener('click', () => toggleReportForm());
+    closeReportFormButton.addEventListener('click', () => toggleReportForm(false));
+</script>
 {% endblock %}

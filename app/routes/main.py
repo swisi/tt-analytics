@@ -1,5 +1,6 @@
 import re
 from collections import Counter
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime
 from itertools import groupby
 from io import BytesIO
@@ -53,9 +54,16 @@ def _normalize_bucket_value(value, bucket_kind):
             "pass": "Pass",
             "punt": "Punt",
             "kickoff return": "Kickoff Return",
+            "ko rec": "Kickoff Return",
+            "kickoff rec": "Kickoff Return",
             "kickoff": "Kickoff",
+            "ko": "Kickoff",
+            "punt rec": "Punt Return",
+            "punt return": "Punt Return",
             "field goal": "Field Goal",
+            "fg": "Field Goal",
             "extra point": "Extra Point",
+            "pat": "Extra Point",
         },
         "side_of_ball": {
             "offense": "Offense",
@@ -270,6 +278,103 @@ def _analysis_first(primary, fallback=None, placeholders=None):
     return _empty_if_placeholder(fallback, placeholders=placeholders)
 
 
+def _ordinal_down(value):
+    down = _safe_int(value)
+    if down == 1:
+        return "1st"
+    if down == 2:
+        return "2nd"
+    if down == 3:
+        return "3rd"
+    if down == 4:
+        return "4th"
+    return None
+
+
+def _play_type_for_summary(value):
+    normalized = _normalize_bucket_value(value, "play_type")
+    if normalized:
+        return normalized
+
+    raw = _empty_if_placeholder(value)
+    if not raw:
+        return None
+
+    aliases = {
+        "ko rec": "Kickoff Return",
+        "kickoff rec": "Kickoff Return",
+        "punt rec": "Punt Return",
+        "fg": "Field Goal",
+        "pat": "Extra Point",
+    }
+    return aliases.get(raw.casefold(), raw)
+
+
+def _build_export_summary(play, breakdown):
+    play_type = _play_type_for_summary(breakdown.get("PLAY TYPE") or play.get("play_type"))
+    focus_team = _empty_if_placeholder(play.get("focus_team"))
+    side_of_ball = _analysis_first(
+        "" if play.get("side_of_ball") == "Unknown" else play.get("side_of_ball"),
+        breakdown.get("SIDE"),
+    )
+    result = _analysis_first(
+        "" if play.get("result") == "Unknown" else play.get("result"),
+        breakdown.get("RESULT"),
+    )
+    down = _ordinal_down("" if play.get("down") == "n/a" else play.get("down"))
+    distance = _analysis_first("" if play.get("distance") == "n/a" else play.get("distance"), breakdown.get("DIST"))
+    field_position = _analysis_first(
+        "" if play.get("field_position") == "n/a" else play.get("field_position"),
+        breakdown.get("YARD LN"),
+    )
+    play_direction = _analysis_first(_empty_if_placeholder(play.get("play_direction")), breakdown.get("PLAY DIR"))
+    yards_gained = play.get("yards_gained")
+    if yards_gained is None:
+        yards_gained = _safe_int(breakdown.get("YDS")) or _safe_int(breakdown.get("GN/LS"))
+
+    details = []
+    if down and distance:
+        details.append(f"{down} & {distance}")
+    elif down:
+        details.append(down)
+    if field_position:
+        details.append(f"at the {field_position}")
+
+    prefix = ""
+    if details:
+        prefix = f"{' '.join(details)}: "
+
+    perspective_prefix = ""
+    if focus_team and side_of_ball == "Offense":
+        perspective_prefix = f"{focus_team} offense "
+    elif focus_team and side_of_ball == "Defense":
+        perspective_prefix = f"{focus_team} defense "
+    elif focus_team and side_of_ball == "Special Teams":
+        perspective_prefix = f"{focus_team} special teams "
+
+    if play_type in {"Kickoff", "Kickoff Return", "Punt", "Punt Return", "Field Goal", "Extra Point"}:
+        if result and result.casefold() != play_type.casefold():
+            return f"{prefix}{perspective_prefix}{play_type}; result: {result}."
+        return f"{prefix}{perspective_prefix}{play_type}."
+
+    if play_type:
+        fragments = [play_type]
+        if play_direction:
+            fragments.append(play_direction.lower())
+        sentence = " ".join(fragments)
+        if result:
+            sentence += f", result: {result.lower()}"
+        if yards_gained is not None:
+            yard_label = "yard" if abs(yards_gained) == 1 else "yards"
+            sentence += f" for {yards_gained} {yard_label}"
+        return f"{prefix}{perspective_prefix}{sentence}."
+
+    if result:
+        return f"{prefix}{perspective_prefix}play result: {result}."
+
+    return ""
+
+
 def _breakdown_payload_for_analysis(analysis):
     if not analysis.clip:
         return {}
@@ -475,6 +580,11 @@ def _build_breakdown_export_rows(report, plays):
         motion = _empty_if_placeholder(play.get("motion"))
         play_direction = _empty_if_placeholder(play.get("play_direction"))
         yards_gained = play.get("yards_gained")
+        export_summary = _build_export_summary(play, breakdown) or _analysis_first(
+            summary,
+            breakdown.get("SUMMARY"),
+            placeholders={"Keine Zusammenfassung"},
+        )
         rows.append(
             {
                 "PLAY #": breakdown.get("PLAY #") or play.get("external_play_number") or play.get("play_number") or "",
@@ -496,7 +606,7 @@ def _build_breakdown_export_rows(report, plays):
                 "COVERAGE": _analysis_first("" if play.get("coverage") == "n/a" else play.get("coverage"), breakdown.get("COVERAGE")),
                 "BLITZ": _analysis_first("" if play.get("blitz") == "n/a" else play.get("blitz"), breakdown.get("BLITZ")),
                 "PRESSURE": _analysis_first("" if play.get("pressure") == "n/a" else play.get("pressure"), breakdown.get("PRESSURE")),
-                "SUMMARY": _analysis_first(summary, breakdown.get("SUMMARY"), placeholders={"Keine Zusammenfassung"}),
+                "SUMMARY": export_summary,
                 "CLIP #": play.get("clip_number") or "",
                 "GAME": report.title if report.report_type == "self_scout" else play.get("game") or "",
                 "FOCUS TEAM": play.get("focus_team") or report.focus_team.name,
@@ -916,6 +1026,9 @@ def _update_run_counters(run):
         run = AnalysisRun.query.get(run.id)
         if not run:
             return
+        if run.status == "aborted":
+            db.session.commit()
+            return
         analyses = ClipAnalysis.query.filter_by(analysis_run_id=run.id).all()
         run.total_clips = len(run.game.clips)
         run.processed_clips = sum(1 for item in analyses if item.status == "completed")
@@ -956,19 +1069,57 @@ def _run_analysis_batch(app, run_id):
                 db.session.commit()
                 return
 
+            concurrency = max(1, int(app.config.get("ANALYSIS_CONCURRENCY", 2)))
             run.status = "running"
             db.session.commit()
-
+            clip_ids = []
             for clip in clips:
-                db.session.rollback()
-                run = AnalysisRun.query.get(run_id)
-                if not run:
-                    return
                 existing_analysis = ClipAnalysis.query.filter_by(clip_id=clip.id, analysis_run_id=run.id).first()
                 if existing_analysis and existing_analysis.status == "completed":
-                    _update_run_counters(run)
                     continue
-                _analyze_clip_for_run(clip, run)
+                clip_ids.append(clip.id)
+            _update_run_counters(run)
+
+            def submit_clip(executor, clip_id):
+                return executor.submit(_analyze_single_clip_for_run, app, run_id, clip_id)
+
+            with ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix=f"analysis-run-{run_id}") as executor:
+                in_flight = {}
+                clip_iter = iter(clip_ids)
+
+                while True:
+                    db.session.rollback()
+                    run = AnalysisRun.query.get(run_id)
+                    if not run:
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        return
+                    if run.status == "aborted":
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        return
+
+                    while len(in_flight) < concurrency:
+                        try:
+                            clip_id = next(clip_iter)
+                        except StopIteration:
+                            break
+                        future = submit_clip(executor, clip_id)
+                        in_flight[future] = clip_id
+
+                    if not in_flight:
+                        break
+
+                    done, _ = wait(in_flight.keys(), return_when=FIRST_COMPLETED)
+                    for future in done:
+                        in_flight.pop(future, None)
+                        try:
+                            future.result()
+                        except Exception:
+                            db.session.rollback()
+                    _update_run_counters(run)
+
+            db.session.rollback()
+            run = AnalysisRun.query.get(run_id)
+            if run and run.status != "aborted":
                 _update_run_counters(run)
         except Exception:
             db.session.rollback()
@@ -976,6 +1127,24 @@ def _run_analysis_batch(app, run_id):
             if run:
                 run.status = "completed_with_errors"
                 db.session.commit()
+
+
+def _analyze_single_clip_for_run(app, run_id, clip_id):
+    with app.app_context():
+        try:
+            db.session.rollback()
+            run = db.session.get(AnalysisRun, run_id)
+            clip = db.session.get(Clip, clip_id)
+            if not run or not clip or run.status == "aborted":
+                return False
+
+            existing_analysis = ClipAnalysis.query.filter_by(clip_id=clip.id, analysis_run_id=run.id).first()
+            if existing_analysis and existing_analysis.status == "completed":
+                return True
+
+            return _analyze_clip_for_run(clip, run)[0]
+        finally:
+            db.session.remove()
 
 
 @bp.route("/teams", methods=["GET", "POST"])
@@ -1245,8 +1414,48 @@ def reports():
         flash("Report wurde angelegt.", "success")
         return redirect(url_for("main.reports"))
 
-    reports = Report.query.order_by(Report.created_at.desc()).all()
-    return render_template("reports.html", reports=reports, available_runs=available_runs)
+    filters = {
+        "query": (request.args.get("query") or "").strip(),
+        "report_type": (request.args.get("report_type") or "").strip(),
+        "focus_team_id": (request.args.get("focus_team_id") or "").strip(),
+        "status": (request.args.get("status") or "").strip(),
+        "sort": (request.args.get("sort") or "newest").strip(),
+    }
+
+    reports_query = Report.query
+
+    if filters["query"]:
+        search_term = f"%{filters['query']}%"
+        reports_query = reports_query.filter(Report.title.ilike(search_term))
+    if filters["report_type"]:
+        reports_query = reports_query.filter(Report.report_type == filters["report_type"])
+    if filters["focus_team_id"].isdigit():
+        reports_query = reports_query.filter(Report.focus_team_id == int(filters["focus_team_id"]))
+    if filters["status"]:
+        reports_query = reports_query.filter(Report.status == filters["status"])
+
+    sort_key = filters["sort"]
+    if sort_key == "oldest":
+        reports_query = reports_query.order_by(Report.created_at.asc())
+    elif sort_key == "title_asc":
+        reports_query = reports_query.order_by(Report.title.asc(), Report.created_at.desc())
+    elif sort_key == "title_desc":
+        reports_query = reports_query.order_by(Report.title.desc(), Report.created_at.desc())
+    else:
+        reports_query = reports_query.order_by(Report.created_at.desc())
+
+    reports = reports_query.all()
+    focus_teams = Team.query.join(Report, Report.focus_team_id == Team.id).distinct().order_by(Team.name.asc()).all()
+    statuses = [value[0] for value in db.session.query(Report.status).distinct().order_by(Report.status.asc()).all() if value[0]]
+    return render_template(
+        "reports.html",
+        reports=reports,
+        available_runs=available_runs,
+        filters=filters,
+        focus_teams=focus_teams,
+        statuses=statuses,
+        report_type_labels=REPORT_TYPE_LABELS,
+    )
 
 
 @bp.route("/reports/<int:report_id>")

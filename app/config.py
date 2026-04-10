@@ -28,4 +28,5 @@ class Config:
     GEMINI_MAX_RETRIES = int(os.environ.get("GEMINI_MAX_RETRIES", 8))
     GEMINI_RETRY_BUFFER_SECONDS = int(os.environ.get("GEMINI_RETRY_BUFFER_SECONDS", 5))
     GEMINI_RETRY_DEFAULT_SECONDS = int(os.environ.get("GEMINI_RETRY_DEFAULT_SECONDS", 60))
+    ANALYSIS_CONCURRENCY = max(1, int(os.environ.get("ANALYSIS_CONCURRENCY", 2)))
     RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")

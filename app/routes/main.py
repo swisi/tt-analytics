@@ -54,8 +54,8 @@ def _normalize_bucket_value(value, bucket_kind):
             "pass": "Pass",
             "punt": "Punt",
             "kickoff return": "Kickoff Return",
-            "ko rec": "Kickoff Return",
-            "kickoff rec": "Kickoff Return",
+            "ko rec": "Kickoff",
+            "kickoff rec": "Kickoff",
             "kickoff": "Kickoff",
             "ko": "Kickoff",
             "punt rec": "Punt Return",
@@ -64,6 +64,9 @@ def _normalize_bucket_value(value, bucket_kind):
             "fg": "Field Goal",
             "extra point": "Extra Point",
             "pat": "Extra Point",
+            "extra pt. block": "Extra Point",
+            "extra point block": "Extra Point",
+            "pat block": "Extra Point",
         },
         "side_of_ball": {
             "offense": "Offense",
@@ -301,11 +304,14 @@ def _play_type_for_summary(value):
         return None
 
     aliases = {
-        "ko rec": "Kickoff Return",
-        "kickoff rec": "Kickoff Return",
+        "ko rec": "Kickoff",
+        "kickoff rec": "Kickoff",
         "punt rec": "Punt Return",
         "fg": "Field Goal",
         "pat": "Extra Point",
+        "extra pt. block": "Extra Point",
+        "extra point block": "Extra Point",
+        "pat block": "Extra Point",
     }
     return aliases.get(raw.casefold(), raw)
 

@@ -323,11 +323,14 @@ def _normalize_play_type_for_summary(value):
     if not raw:
         return None
     aliases = {
-        "ko rec": "Kickoff Return",
-        "kickoff rec": "Kickoff Return",
+        "ko rec": "Kickoff",
+        "kickoff rec": "Kickoff",
         "punt rec": "Punt Return",
         "fg": "Field Goal",
         "pat": "Extra Point",
+        "extra pt. block": "Extra Point",
+        "extra point block": "Extra Point",
+        "pat block": "Extra Point",
     }
     normalized = aliases.get(raw.casefold())
     if normalized:
@@ -374,6 +377,14 @@ def _build_focus_aligned_summary(result, analysis_run, breakdown_payload):
         return _coerce_string((result or {}).get("summary"))
 
     if play_type in {"Kickoff", "Kickoff Return", "Punt", "Punt Return", "Field Goal", "Extra Point"}:
+        if play_type == "Kickoff":
+            if result_label and result_label.casefold() == "kickoff return":
+                return f"{lead}{perspective} Kickoff; result: kickoff return."
+            return f"{lead}{perspective} Kickoff."
+        if play_type == "Extra Point":
+            if result_label:
+                return f"{lead}{perspective} Extra Point attempt; result: {result_label}."
+            return f"{lead}{perspective} Extra Point attempt."
         if result_label and result_label.casefold() != play_type.casefold():
             return f"{lead}{perspective} {play_type}; result: {result_label}."
         if play_type:

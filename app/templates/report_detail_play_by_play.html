@@ -34,11 +34,11 @@
 <div class="mb-8 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
     <div>
         <a href="{{ url_for('main.reports') }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
-            <i class="bi bi-arrow-left mr-1"></i>Zurück zu Reports
+            <i class="bi bi-arrow-left mr-1"></i>Zurück zu Berichten
         </a>
         <h1 class="text-3xl font-bold text-slate-900 dark:text-white mt-2">{{ report.title }}</h1>
         <p class="text-slate-500 dark:text-slate-400 mt-2">
-            Fokus-Team: {{ report.focus_team.name }} · {{ report_type_labels.get(report.report_type, report.report_type) }} · {{ report.status }}
+            Fokus-Team: {{ report.focus_team.name }} · {{ report_type_labels.get(report.report_type, report.report_type) }} · {{ report_status_labels.get(report.status, report.status) if report_status_labels is defined else report.status }}
         </p>
     </div>
     <div class="flex flex-col gap-2 w-full md:w-auto">
@@ -56,7 +56,7 @@
 
 <div class="grid grid-cols-1 xl:grid-cols-4 gap-4 mb-6">
     <div class="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5">
-        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Plays</div>
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Spielzuege</div>
         <div class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{{ play_view.highlights.total_plays }}</div>
     </div>
     <div class="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5">
@@ -64,11 +64,11 @@
         <div class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{{ play_view.highlights.total_series }}</div>
     </div>
     <div class="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5">
-        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Explosive Plays</div>
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Explosive Spielzuege</div>
         <div class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{{ play_view.highlights.explosive_plays }}</div>
     </div>
     <div class="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5">
-        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Top Outcome</div>
+        <div class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Top-Ergebnis</div>
         <div class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{{ play_view.highlights.top_result }}</div>
     </div>
 </div>
@@ -78,7 +78,7 @@
         <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
             <div class="flex items-start justify-between gap-4 mb-4">
                 <div>
-                    <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Executive Overview</h2>
+                    <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Executive Uebersicht</h2>
                     <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Chronologischer Spielverlauf mit AI-Zusammenfassung, Serienblick und Situationsfiltern.</p>
                 </div>
             </div>
@@ -105,8 +105,8 @@
         <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
             <div class="flex items-center justify-between gap-3 mb-4">
                 <div>
-                    <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Play Filters</h2>
-                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Filtere den Spielverlauf nach Quarter, Down, Play Type und Side.</p>
+                    <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Spielzugfilter</h2>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Filtere den Spielverlauf nach Quarter, Down, Spielzugtyp und Seite.</p>
                 </div>
             </div>
             <form method="get" action="{{ url_for('main.report_detail', report_id=report.id) }}" class="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -136,7 +136,7 @@
                 </select>
                 <div class="flex gap-2">
                     <button type="submit" class="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">Filtern</button>
-                    <a href="{{ url_for('main.report_detail', report_id=report.id) }}" class="px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg text-center">Reset</a>
+                    <a href="{{ url_for('main.report_detail', report_id=report.id) }}" class="px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg text-center">Zuruecksetzen</a>
                 </div>
             </form>
         </div>
@@ -153,7 +153,7 @@
                             <th class="text-left py-2 pr-3">Structure</th>
                             <th class="text-left py-2 pr-3">Defense</th>
                             <th class="text-left py-2 pr-3">Summary</th>
-                            <th class="text-left py-2">Outcome</th>
+                            <th class="text-left py-2">Ergebnis</th>
                         </tr>
                     </thead>
                     <tbody class="align-top">
@@ -197,7 +197,7 @@
                 </table>
             </div>
             {% else %}
-            <p class="text-sm text-slate-500 dark:text-slate-400">Keine Plays für die gewählten Filter vorhanden.</p>
+            <p class="text-sm text-slate-500 dark:text-slate-400">Keine Spielzuege fuer die gewaehlten Filter vorhanden.</p>
             {% endif %}
         </div>
 
@@ -225,7 +225,7 @@
                 {% for entry in play_view.quarter_summaries %}
                 <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                     <div class="font-medium text-slate-900 dark:text-white">Q{{ entry.quarter }}</div>
-                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ entry.play_count }} Plays · {{ entry.top_type }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ entry.play_count }} Spielzuege · {{ entry.top_type }}</div>
                     <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ entry.top_result }} · Explosive {{ entry.explosive_count }}</div>
                 </div>
                 {% else %}
@@ -235,12 +235,12 @@
         </div>
 
         <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
-            <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Series Breakdown</h2>
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Serienaufschluesselung</h2>
             <div class="space-y-3">
                 {% for entry in play_view.series_summaries %}
                 <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                     <div class="font-medium text-slate-900 dark:text-white">{{ entry.label }}</div>
-                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ entry.play_count }} Plays · {{ entry.top_type }}</div>
+                    <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ entry.play_count }} Spielzuege · {{ entry.top_type }}</div>
                     <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Start: {{ entry.start_down }} · Ende: {{ entry.end_result }}</div>
                     <div class="text-sm text-slate-600 dark:text-slate-300 mt-2">{{ entry.summary }}</div>
                 </div>

@@ -77,14 +77,6 @@ def create_app(config_class=Config):
     def seed_defaults():
         changed = False
 
-        own_team = Team.query.filter_by(name="Tigers").first()
-        if not own_team:
-            db.session.add(Team(name="Tigers", club_name="Tigers", is_own_team=True))
-            changed = True
-        elif not own_team.is_own_team:
-            own_team.is_own_team = True
-            changed = True
-
         season = Season.query.filter_by(label="2026").first()
         if not season:
             db.session.add(Season(label="2026", year=2026, active=True))

@@ -231,10 +231,17 @@ def _normalize_report_text(text):
         if index == 0 and re.match(r"^#?\s*Scouting\s+", line, flags=re.IGNORECASE):
             continue
 
-        line = re.sub(r"^##\s*\d+\.\s*", "## ", line)
+        line = re.sub(r"^#{1,6}\s*\d+\.\s*", "## ", line)
         line = re.sub(r"^\d+\.\s+(Executive Summary|Offense|Defense|Situational Tendencies|Top Coaching Points|Data Gaps / Confidence)$", r"## \1", line, flags=re.IGNORECASE)
         line = re.sub(r"^Analysebasis:\s*", "**Analysebasis:** ", line, flags=re.IGNORECASE)
         line = re.sub(r"^(Allgemeine Offensive Tendenzen|Formationen & Personnel|Blitz & Pressure|Situative Tendenzen)$", r"### \1", line)
+        line = re.sub(r"^##\s*Executive Summary$", "## Executive Uebersicht", line, flags=re.IGNORECASE)
+        line = re.sub(r"^##\s*Offense$", "## Angriff", line, flags=re.IGNORECASE)
+        line = re.sub(r"^##\s*Defense$", "## Defense", line, flags=re.IGNORECASE)
+        line = re.sub(r"^##\s*Situational Tendencies$", "## Situations-Tendenzen", line, flags=re.IGNORECASE)
+        line = re.sub(r"^##\s*Top Coaching Points$", "## Wichtigste Coaching-Punkte", line, flags=re.IGNORECASE)
+        line = re.sub(r"^##\s*Data Gaps / Confidence$", "## Datenluecken / Konfidenz", line, flags=re.IGNORECASE)
+        line = re.sub(r"\bRun\s+(\d+)\b", r"Lauf \1", line)
         if line == "---":
             lines.append("")
             continue
@@ -765,6 +772,12 @@ def _top_metric_label(rows, fallback="Keine Daten"):
     return str(rows[0][0])
 
 
+def _display_play_value(value):
+    if value is None:
+        return "Keine Daten"
+    return PLAY_VALUE_LABELS.get(str(value), str(value))
+
+
 def _build_report_view_model(report, metrics):
     sections = _split_report_sections(report.summary or "")
     section_map = {title: body for title, body in sections}
@@ -783,9 +796,9 @@ def _build_report_view_model(report, metrics):
     if report.report_type == "play_by_play":
         at_a_glance = [
             {
-                "title": "Play Flow",
-                "value": _top_metric_label(metrics["play_tendencies"]["top_play_types"]),
-                "detail": f"Result: {_top_metric_label(metrics['play_tendencies']['top_results'])}",
+                "title": "Spielverlauf",
+                "value": _display_play_value(_top_metric_label(metrics["play_tendencies"]["top_play_types"])),
+                "detail": f"Ergebnis: {_display_play_value(_top_metric_label(metrics['play_tendencies']['top_results']))}",
             },
             {
                 "title": "Defense",
@@ -795,19 +808,19 @@ def _build_report_view_model(report, metrics):
             {
                 "title": "Situation",
                 "value": _top_metric_label(metrics["play_tendencies"]["top_downs"]),
-                "detail": f"Field: {_top_metric_label(metrics['play_tendencies']['top_field_positions'])}",
+                "detail": f"Feldposition: {_top_metric_label(metrics['play_tendencies']['top_field_positions'])}",
             },
         ]
     else:
         at_a_glance = [
             {
                 "title": "Gesamttendenzen",
-                "value": _top_metric_label(metrics["play_tendencies"]["top_play_types"]),
-                "detail": f"Result: {_top_metric_label(metrics['play_tendencies']['top_results'])}",
+                "value": _display_play_value(_top_metric_label(metrics["play_tendencies"]["top_play_types"])),
+                "detail": f"Ergebnis: {_display_play_value(_top_metric_label(metrics['play_tendencies']['top_results']))}",
             },
             {
                 "title": "Fokus-Team Offense",
-                "value": _top_metric_label(metrics["focus_team_tendencies"]["offense"]["top_play_types"]),
+                "value": _display_play_value(_top_metric_label(metrics["focus_team_tendencies"]["offense"]["top_play_types"])),
                 "detail": f"Formation: {_top_metric_label(metrics['focus_team_tendencies']['offense']['top_formations'])}",
             },
             {
@@ -827,21 +840,21 @@ def _build_report_view_model(report, metrics):
 def _build_table_sections(metrics):
     def basic_tables(section_metrics, include_side=False):
         tables = [
-            {"title": "Play Types", "rows": section_metrics["top_play_types"], "column_title": "Play Type"},
-            {"title": "Formations", "rows": section_metrics["top_formations"], "column_title": "Formation"},
+            {"title": "Spielzugtypen", "rows": section_metrics["top_play_types"], "column_title": "Spielzugtyp"},
+            {"title": "Formationen", "rows": section_metrics["top_formations"], "column_title": "Formation"},
             {"title": "Personnel", "rows": section_metrics["top_personnel"], "column_title": "Personnel"},
             {"title": "Fronts", "rows": section_metrics["top_fronts"], "column_title": "Front"},
             {"title": "Coverages", "rows": section_metrics["top_coverages"], "column_title": "Coverage"},
-            {"title": "Blitz Tendencies", "rows": section_metrics["top_blitz"], "column_title": "Blitz"},
-            {"title": "Pressure Tendencies", "rows": section_metrics["top_pressure"], "column_title": "Pressure"},
-            {"title": "Outcomes", "rows": section_metrics["top_results"], "column_title": "Outcome"},
-            {"title": "Down Tendencies", "rows": section_metrics["top_downs"], "column_title": "Down"},
-            {"title": "Distance Tendencies", "rows": section_metrics["top_distances"], "column_title": "Distance"},
-            {"title": "Hash Tendencies", "rows": section_metrics["top_hashes"], "column_title": "Hash"},
-            {"title": "Field Position", "rows": section_metrics["top_field_positions"], "column_title": "Yard Line"},
+            {"title": "Blitz-Tendenzen", "rows": section_metrics["top_blitz"], "column_title": "Blitz"},
+            {"title": "Pressure-Tendenzen", "rows": section_metrics["top_pressure"], "column_title": "Pressure"},
+            {"title": "Ergebnisse", "rows": section_metrics["top_results"], "column_title": "Ergebnis"},
+            {"title": "Down-Tendenzen", "rows": section_metrics["top_downs"], "column_title": "Down"},
+            {"title": "Distanz-Tendenzen", "rows": section_metrics["top_distances"], "column_title": "Distanz"},
+            {"title": "Hash-Tendenzen", "rows": section_metrics["top_hashes"], "column_title": "Hash"},
+            {"title": "Feldposition", "rows": section_metrics["top_field_positions"], "column_title": "Yard-Linie"},
         ]
         if include_side:
-            tables.insert(1, {"title": "Sides of Ball", "rows": section_metrics["top_sides"], "column_title": "Side"})
+            tables.insert(1, {"title": "Ballseiten", "rows": section_metrics["top_sides"], "column_title": "Seite"})
         return tables
 
     return [
@@ -1041,7 +1054,16 @@ def index():
     recent_games = Game.query.order_by(Game.created_at.desc()).limit(5).all()
     recent_runs = AnalysisRun.query.order_by(AnalysisRun.created_at.desc()).limit(5).all()
     recent_reports = Report.query.order_by(Report.created_at.desc()).limit(5).all()
-    return render_template("index.html", stats=stats, recent_games=recent_games, recent_runs=recent_runs, recent_reports=recent_reports)
+    return render_template(
+        "index.html",
+        stats=stats,
+        recent_games=recent_games,
+        recent_runs=recent_runs,
+        recent_reports=recent_reports,
+        source_type_labels=SOURCE_TYPE_LABELS,
+        analysis_mode_labels=ANALYSIS_MODE_LABELS,
+        report_type_labels=REPORT_TYPE_LABELS,
+    )
 
 
 @bp.route("/health")
@@ -1499,6 +1521,7 @@ def runs():
         runs=runs,
         games=games,
         analysis_mode_labels=ANALYSIS_MODE_LABELS,
+        report_status_labels=REPORT_STATUS_LABELS,
         linked_reports_by_run=linked_reports_by_run,
         run_prefill=run_prefill,
     )
@@ -1653,6 +1676,7 @@ def reports():
         focus_teams=focus_teams,
         statuses=statuses,
         report_type_labels=REPORT_TYPE_LABELS,
+        report_status_labels=REPORT_STATUS_LABELS,
         analysis_mode_labels=ANALYSIS_MODE_LABELS,
         report_prefill=report_prefill,
     )
@@ -1812,7 +1836,13 @@ def game_clips(game_id):
 
     clips = Clip.query.filter_by(game_id=game.id).order_by(Clip.clip_number.asc(), Clip.created_at.asc()).all()
     runs = AnalysisRun.query.filter_by(game_id=game.id).order_by(AnalysisRun.created_at.desc()).all()
-    return render_template("clips.html", game=game, clips=clips, runs=runs)
+    return render_template(
+        "clips.html",
+        game=game,
+        clips=clips,
+        runs=runs,
+        analysis_mode_labels=ANALYSIS_MODE_LABELS,
+    )
 
 
 @bp.route("/games/<int:game_id>/breakdown", methods=["POST"])

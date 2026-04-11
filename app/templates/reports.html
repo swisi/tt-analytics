@@ -8,7 +8,7 @@
             <div class="max-w-3xl">
                 <div class="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-indigo-500 dark:text-indigo-300">Scouting-Arbeitsbereich</div>
                 <h1 class="mt-3 text-3xl md:text-4xl font-bold tracking-tight text-slate-950 dark:text-white">Berichte</h1>
-                <p class="mt-3 text-sm md:text-base text-slate-600 dark:text-slate-300">Ein Report bündelt relevante Runs in einer coachbaren Struktur. Ziel ist weniger Suchen und schnelleres Entscheiden zwischen Gesamtbild, Tendencies und Detailansicht.</p>
+                <p class="mt-3 text-sm md:text-base text-slate-600 dark:text-slate-300">Ein Bericht buendelt relevante Laeufe in einer coachbaren Struktur. Ziel ist weniger Suchen und schnelleres Entscheiden zwischen Gesamtbild, Tendenzen und Detailansicht.</p>
                 <div class="mt-4 flex flex-wrap gap-2">
                     <span class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
                         <i class="bi bi-collection"></i>
@@ -23,7 +23,7 @@
             <button
                 type="button"
                 id="toggleReportForm"
-                class="inline-flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 sm:w-auto"
             >
                 <i class="bi bi-file-earmark-plus"></i>
                 <span>Neuen Bericht erstellen</span>
@@ -33,12 +33,12 @@
 </div>
 
 <section id="reportCreatePanel" class="{{ '' if report_prefill.open_create else 'hidden ' }}mb-6 rounded-[1.75rem] border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 shadow-lg p-6">
-    <div class="flex items-start justify-between gap-4 mb-5">
+    <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
             <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Neuer Bericht</h2>
             <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Waehle die passenden Analyselaeufe. Die Lauf-ID ist direkt sichtbar, damit du laufende und abgeschlossene Laeufe unterscheiden kannst.</p>
         </div>
-        <button type="button" id="closeReportForm" class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+        <button type="button" id="closeReportForm" class="self-end rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200 sm:self-auto">
             <i class="bi bi-x-lg"></i>
         </button>
     </div>
@@ -48,7 +48,7 @@
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
             <div class="xl:col-span-2">
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Titel</label>
-                <input name="title" type="text" value="{{ report_prefill.title }}" required class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm" placeholder="z. B. Scouting Report Genf oder Play by Play vs. Genf">
+                <input name="title" type="text" value="{{ report_prefill.title }}" required class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm" placeholder="z. B. Scouting-Bericht Genf oder Spielzugfolge vs. Genf">
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Report-Typ</label>
@@ -74,8 +74,8 @@
                     <input type="checkbox" name="run_ids" value="{{ run.id }}" {% if run.id|string in report_prefill.selected_run_ids %}checked{% endif %} class="mt-1 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                     <span class="min-w-0 flex-1">
                         <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <strong class="text-slate-900 dark:text-slate-100">Run {{ run.id }}</strong>
-                            <span class="px-2 py-0.5 text-[11px] font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full">{{ run.status }}</span>
+                            <strong class="text-slate-900 dark:text-slate-100">Lauf {{ run.id }}</strong>
+                            <span class="px-2 py-0.5 text-[11px] font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full">{{ report_status_labels.get(run.status, run.status) }}</span>
                             <span class="text-slate-500 dark:text-slate-400">{{ analysis_mode_labels.get(run.analysis_mode, run.analysis_mode) }}</span>
                         </span>
                         <span class="block mt-1 text-slate-700 dark:text-slate-200">{{ run.focus_team.name }} · {{ run.game.label }}</span>
@@ -89,7 +89,7 @@
         </div>
 
         <div class="flex justify-end">
-            <button type="submit" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-xl transition shadow-md hover:shadow-lg text-sm">
+            <button type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-indigo-700 hover:shadow-lg dark:bg-indigo-500 dark:hover:bg-indigo-600 sm:w-auto">
                 <i class="bi bi-file-earmark-plus"></i>Bericht anlegen
             </button>
         </div>
@@ -134,7 +134,7 @@
                 <select name="status" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
                     <option value="">Alle</option>
                     {% for status in statuses %}
-                    <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+                    <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ report_status_labels.get(status, status) }}</option>
                     {% endfor %}
                 </select>
                 <select name="sort" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">
@@ -145,9 +145,9 @@
                 </select>
             </div>
         </div>
-        <div class="md:col-span-2 xl:col-span-5 flex flex-wrap items-center justify-end gap-2">
-            <a href="{{ url_for('main.reports') }}" class="px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition">Reset</a>
-            <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-lg transition">Filter anwenden</button>
+        <div class="md:col-span-2 xl:col-span-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <a href="{{ url_for('main.reports') }}" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-center text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700 sm:w-auto">Zuruecksetzen</a>
+            <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 sm:w-auto">Filter anwenden</button>
         </div>
     </form>
 
@@ -195,7 +195,7 @@
             {% if filters.status %}
             <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 text-sm text-emerald-700 dark:text-emerald-200">
                 <i class="bi bi-activity"></i>
-                <span>Status: {{ filters.status }}</span>
+                <span>Status: {{ report_status_labels.get(filters.status, filters.status) }}</span>
             </span>
             {% endif %}
             {% if filters.sort and filters.sort != 'newest' %}
@@ -231,7 +231,7 @@
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="min-w-0">
                     <div class="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                        <span>Report {{ report.id }}</span>
+                        <span>Bericht {{ report.id }}</span>
                         <span class="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
                         <span>{{ report.created_at.strftime('%d.%m.%Y %H:%M') if report.created_at else '-' }}</span>
                     </div>
@@ -247,18 +247,18 @@
                         </span>
                         <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium {{ 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200' if report.status == 'completed' else 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200' }}">
                             <i class="bi bi-activity"></i>
-                            <span>{{ report.status }}</span>
+                            <span>{{ report_status_labels.get(report.status, report.status) }}</span>
                         </span>
                     </div>
                 </div>
-                <div class="flex flex-wrap items-center gap-2 lg:justify-end">
-                    <a href="{{ url_for('main.report_detail', report_id=report.id) }}" class="inline-flex items-center gap-2 rounded-xl border border-indigo-200 dark:border-indigo-800 px-3 py-2 text-sm font-medium text-indigo-700 dark:text-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition">
+                <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
+                    <a href="{{ url_for('main.report_detail', report_id=report.id) }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 dark:border-indigo-800 px-3 py-2 text-sm font-medium text-indigo-700 dark:text-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition sm:w-auto">
                         <i class="bi bi-eye"></i>
                         <span>Öffnen</span>
                     </a>
-                    <form method="post" action="{{ url_for('main.delete_report', report_id=report.id) }}" onsubmit="return confirm('Report wirklich löschen?');">
+                    <form method="post" action="{{ url_for('main.delete_report', report_id=report.id) }}" onsubmit="return confirm('Report wirklich löschen?');" class="w-full sm:w-auto">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button type="submit" class="inline-flex items-center gap-2 rounded-xl border border-red-200 dark:border-red-800 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 transition">
+                        <button type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 dark:border-red-800 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30">
                             <i class="bi bi-trash"></i>
                             <span>Löschen</span>
                         </button>
@@ -270,7 +270,7 @@
                 <div class="mt-3 flex flex-wrap gap-2">
                     {% for entry in report.runs %}
                     <span class="inline-flex items-center gap-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200">
-                        <strong>Run {{ entry.analysis_run.id }}</strong>
+                        <strong>Lauf {{ entry.analysis_run.id }}</strong>
                         <span class="text-slate-400">{{ entry.analysis_run.game.label }}</span>
                     </span>
                     {% else %}

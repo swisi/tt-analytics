@@ -186,15 +186,15 @@
 
     <div class="stats-grid">
         <div class="card">
-            <div class="label">Explosive Plays</div>
+            <div class="label">Explosive Spielzuege</div>
             <div class="value">{{ play_view.highlights.explosive_plays }}</div>
         </div>
         <div class="card">
-            <div class="label">Top Quarter</div>
+            <div class="label">Top-Quarter</div>
             <div class="value">{{ play_view.highlights.top_quarter }}</div>
         </div>
         <div class="card">
-            <div class="label">Top Outcome</div>
+            <div class="label">Top-Ergebnis</div>
             <div class="value">{{ play_view.highlights.top_result }}</div>
         </div>
     </div>
@@ -220,17 +220,17 @@
 
     <div class="section">
         <div class="section-header">
-            <h2>Game Flow Insights</h2>
+            <h2>Spielverlauf-Insights</h2>
             <div class="section-subtitle">Quarter-Muster und Serienverlauf in einer zusammenhängenden Seitenspur.</div>
         </div>
         <div class="insight-stack">
             <div>
-                <div class="label" style="margin-bottom: 8px;">Quarter Summary</div>
+                <div class="label" style="margin-bottom: 8px;">Quarter-Uebersicht</div>
                 <div class="quarter-grid" style="margin-bottom: 0;">
                     {% for entry in play_view.quarter_summaries %}
                     <div class="card">
                         <div class="label">Q{{ entry.quarter }}</div>
-                        <div class="value" style="font-size: 12pt;">{{ entry.play_count }} Plays</div>
+                        <div class="value" style="font-size: 12pt;">{{ entry.play_count }} Spielzuege</div>
                         <div class="small">{{ entry.top_type }} · {{ entry.top_result }} · Explosive {{ entry.explosive_count }}</div>
                     </div>
                     {% endfor %}
@@ -238,11 +238,11 @@
             </div>
 
             <div>
-                <div class="label" style="margin-bottom: 8px;">Series Breakdown</div>
+                <div class="label" style="margin-bottom: 8px;">Serienaufschluesselung</div>
                 {% for entry in play_view.series_summaries %}
                 <div class="series-card">
                     <strong>{{ entry.label }}</strong><br>
-                    <span class="small">{{ entry.play_count }} Plays · {{ entry.top_type }} · Start {{ entry.start_down }} · Ende {{ entry.end_result }}</span>
+                    <span class="small">{{ entry.play_count }} Spielzuege · {{ entry.top_type }} · Start {{ entry.start_down }} · Ende {{ entry.end_result }}</span>
                     <div style="margin-top: 6px;">{{ entry.summary }}</div>
                 </div>
                 {% endfor %}
@@ -252,16 +252,16 @@
 
     <div class="section">
         <div class="section-header">
-            <h2>Play Timeline</h2>
-            <div class="section-subtitle">Kompakt auf vier Spalten reduziert, damit Situation, Struktur und Outcome lesbar bleiben.</div>
+            <h2>Spielzugfolge</h2>
+            <div class="section-subtitle">Kompakt auf vier Spalten reduziert, damit Situation, Struktur und Ergebnis lesbar bleiben.</div>
         </div>
         <table class="timeline-table">
             <thead>
                 <tr>
-                    <th>Play</th>
+                    <th>Spielzug</th>
                     <th>Situation</th>
-                    <th>Structure & Defense</th>
-                    <th>Summary & Outcome</th>
+                    <th>Struktur & Defense</th>
+                    <th>Summary & Ergebnis</th>
                 </tr>
             </thead>
             <tbody>
@@ -273,7 +273,7 @@
                         <div>
                             <span class="timeline-badge">{{ play.side_of_ball }}</span>
                             <span class="timeline-badge">{{ play.play_type }}</span>
-                            {% if play.explosive %}<span class="timeline-badge success">Explosive</span>{% endif %}
+                            {% if play.explosive %}<span class="timeline-badge success">Explosiv</span>{% endif %}
                         </div>
                     </td>
                     <td>

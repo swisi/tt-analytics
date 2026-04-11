@@ -55,9 +55,9 @@
             <div>
                 <label for="source_type" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Quelle</label>
                 <select id="source_type" name="source_type" class="block w-full px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
-                    <option value="opponent_film">Opponent Film</option>
-                    <option value="own_game">Own Game</option>
-                    <option value="practice_cutup">Practice Cutup</option>
+                    <option value="opponent_film">{{ source_type_labels['opponent_film'] }}</option>
+                    <option value="own_game">{{ source_type_labels['own_game'] }}</option>
+                    <option value="practice_cutup">{{ source_type_labels['practice_cutup'] }}</option>
                 </select>
             </div>
             <div>
@@ -86,7 +86,7 @@
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                                <span>Game {{ game.id }}</span>
+                                <span>Spiel {{ game.id }}</span>
                                 {% if game.game_date %}
                                 <span class="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
                                 <span>{{ game.game_date.strftime('%d.%m.%Y') }}</span>
@@ -105,22 +105,22 @@
                                 </span>
                             </div>
                         </div>
-                        <div class="flex flex-wrap items-center gap-2 lg:justify-end">
-                            <a href="{{ url_for('main.game_clips', game_id=game.id) }}" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                        <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
+                            <a href="{{ url_for('main.game_clips', game_id=game.id) }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition sm:w-auto">
                                 <i class="bi bi-camera-reels"></i>
                                 <span>Clips</span>
                             </a>
-                            <a href="{{ url_for('main.runs', create='1', game_id=game.id) }}" class="inline-flex items-center gap-2 rounded-xl border border-sky-200 dark:border-sky-800 px-3 py-2 text-sm font-medium text-sky-700 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition">
+                            <a href="{{ url_for('main.runs', create='1', game_id=game.id) }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-sky-200 dark:border-sky-800 px-3 py-2 text-sm font-medium text-sky-700 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-900/30 transition sm:w-auto">
                                 <i class="bi bi-play-circle"></i>
                                 <span>Run anlegen</span>
                             </a>
                             {% if latest_report_by_game.get(game.id) %}
-                            <a href="{{ url_for('main.report_detail', report_id=latest_report_by_game.get(game.id).id) }}" class="inline-flex items-center gap-2 rounded-xl border border-emerald-200 dark:border-emerald-800 px-3 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition">
+                            <a href="{{ url_for('main.report_detail', report_id=latest_report_by_game.get(game.id).id) }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 dark:border-emerald-800 px-3 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition sm:w-auto">
                                 <i class="bi bi-file-earmark-text"></i>
                                 <span>Letzten Report</span>
                             </a>
                             {% endif %}
-                            <span class="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-900/50 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                            <span class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-900/50 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 sm:w-auto">
                                 <i class="bi bi-chevron-down transition group-open:rotate-180"></i>
                                 <span>Bearbeiten</span>
                             </span>
@@ -192,11 +192,11 @@
                             <textarea name="notes" rows="3" class="block w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm">{{ game.notes or '' }}</textarea>
                         </div>
                     </div>
-                    <div class="flex justify-end gap-2">
-                        <button type="submit" class="px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">
+                    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                        <button type="submit" class="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition sm:w-auto">
                             <i class="bi bi-save mr-1"></i>Speichern
                         </button>
-                        <button type="submit" formaction="{{ url_for('main.delete_game', game_id=game.id) }}" formmethod="post" onclick="return confirm('Spiel wirklich löschen?');" class="px-3 py-2 text-sm font-medium text-red-600 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition">
+                        <button type="submit" formaction="{{ url_for('main.delete_game', game_id=game.id) }}" formmethod="post" onclick="return confirm('Spiel wirklich löschen?');" class="w-full px-3 py-2 text-sm font-medium text-red-600 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition sm:w-auto">
                             <i class="bi bi-trash mr-1"></i>Löschen
                         </button>
                     </div>

@@ -2,15 +2,18 @@
 {% block title %}Teams – Tigers Analytics{% endblock %}
 
 {% block content %}
-<div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-    <div>
-        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Teams</h1>
-        <p class="text-slate-500 dark:text-slate-400 mt-2">Eigene Teams und Gegner als Grundlage für Scouting und Self-Scout.</p>
+<div class="mb-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 bg-white/85 dark:bg-slate-800/85 shadow-xl shadow-slate-200/60 dark:shadow-none overflow-hidden">
+    <div class="bg-[radial-gradient(circle_at_top_left,_rgba(216,180,254,0.75),_rgba(255,255,255,0.8)_40%,_rgba(243,232,255,0.95)_100%)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(126,34,206,0.22),_rgba(30,41,59,0.95)_48%,_rgba(15,23,42,1)_100%)] px-6 py-6 md:px-8">
+        <div class="max-w-3xl">
+            <div class="text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-fuchsia-600 dark:text-fuchsia-300">Roster Base</div>
+            <h1 class="mt-3 text-3xl md:text-4xl font-bold tracking-tight text-slate-950 dark:text-white">Teams</h1>
+            <p class="mt-3 text-sm md:text-base text-slate-600 dark:text-slate-300">Eigene Teams und Gegner bilden die Grundlage für Games, Runs und Reports. Die Seite soll deshalb einfach bleiben: anlegen, kurz prüfen, nur bei Bedarf bearbeiten.</p>
+        </div>
     </div>
 </div>
 
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-    <section class="xl:col-span-1 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+    <section class="xl:col-span-1 bg-white dark:bg-slate-800 rounded-[1.75rem] shadow border border-slate-200 dark:border-slate-700 p-6 xl:sticky xl:top-28 h-fit">
         <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Neues Team</h2>
         <form method="post" action="{{ url_for('main.teams') }}" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -32,16 +35,46 @@
         </form>
     </section>
 
-    <section class="xl:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Aktuelle Teams</h2>
-            <span class="text-sm text-slate-500 dark:text-slate-400">{{ teams|length }} Einträge</span>
+    <section class="xl:col-span-2 bg-white dark:bg-slate-800 rounded-[1.75rem] shadow border border-slate-200 dark:border-slate-700 p-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-5">
+            <div>
+                <h2 class="text-xl font-semibold text-slate-900 dark:text-white">Aktuelle Teams</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Jedes Team ist als kompakte Karte aufgebaut. Die Bearbeitung öffnest du nur, wenn du wirklich etwas ändern willst.</p>
+            </div>
+            <span class="inline-flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-900/60 px-3 py-1.5 text-sm text-slate-500 dark:text-slate-400">{{ teams|length }} Einträge</span>
         </div>
         {% if teams %}
         <div class="space-y-3">
             {% for team in teams %}
-            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <form id="team-form-{{ team.id }}" method="post" action="{{ url_for('main.edit_team', team_id=team.id) }}" class="space-y-3">
+            <details class="group rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm">
+                <summary class="list-none cursor-pointer">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                                <span>Team {{ team.id }}</span>
+                            </div>
+                            <h3 class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{{ team.name }}</h3>
+                            {% if team.club_name %}
+                            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ team.club_name }}</p>
+                            {% endif %}
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium {{ 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200' if team.is_own_team else 'bg-slate-100 text-slate-700 dark:bg-slate-900/50 dark:text-slate-200' }}">
+                                    <i class="bi bi-shield"></i>
+                                    <span>{{ 'Eigenes Team' if team.is_own_team else 'Gegner / extern' }}</span>
+                                </span>
+                                <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium {{ 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200' if team.active else 'bg-slate-100 text-slate-700 dark:bg-slate-900/50 dark:text-slate-200' }}">
+                                    <i class="bi bi-activity"></i>
+                                    <span>{{ 'Aktiv' if team.active else 'Inaktiv' }}</span>
+                                </span>
+                            </div>
+                        </div>
+                        <span class="inline-flex items-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-900/50 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 self-start">
+                            <i class="bi bi-chevron-down transition group-open:rotate-180"></i>
+                            <span>Bearbeiten</span>
+                        </span>
+                    </div>
+                </summary>
+                <form id="team-form-{{ team.id }}" method="post" action="{{ url_for('main.edit_team', team_id=team.id) }}" class="space-y-3 mt-5 pt-5 border-t border-slate-200 dark:border-slate-700">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -74,7 +107,7 @@
                         </div>
                     </div>
                 </form>
-            </div>
+            </details>
             {% endfor %}
         </div>
         {% else %}

@@ -2,20 +2,66 @@
 {% block title %}Dashboard – Tigers Analytics{% endblock %}
 
 {% block content %}
-<div class="mb-8">
-    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-sm font-medium mb-4">
-        <i class="bi bi-stars"></i>
-        MVP-Grundgerüst
+<div class="mb-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 bg-white/85 dark:bg-slate-800/85 shadow-xl shadow-slate-200/60 dark:shadow-none overflow-hidden">
+    <div class="bg-[radial-gradient(circle_at_top_left,_rgba(199,210,254,0.9),_rgba(255,255,255,0.75)_40%,_rgba(224,231,255,0.95)_100%)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(67,56,202,0.28),_rgba(30,41,59,0.95)_48%,_rgba(15,23,42,1)_100%)] px-6 py-6 md:px-8">
+        <div class="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+            <div class="max-w-3xl">
+                <div class="inline-flex items-center gap-2 rounded-full bg-white/80 dark:bg-slate-900/60 px-3 py-1.5 text-sm font-medium text-indigo-700 dark:text-indigo-300">
+                    <i class="bi bi-stars"></i>
+                    <span>MVP-Grundgerüst</span>
+                </div>
+                <h1 class="mt-4 text-3xl md:text-4xl font-bold tracking-tight text-slate-950 dark:text-white">AI-gestützte Spielanalyse für Staff und Coaches</h1>
+                <p class="mt-3 max-w-3xl text-sm md:text-base text-slate-600 dark:text-slate-300">
+                    Zentrale Anmeldung über <code>tt-auth</code>, klarer Workflow von Teams über Spiele und Analyseläufe bis zu Berichten, plus AI-gestützte Analyse als Scouting-Basis.
+                </p>
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <span class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
+                        <i class="bi bi-diagram-3"></i>
+                        <span>{{ stats.teams }} Teams</span>
+                    </span>
+                    <span class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
+                        <i class="bi bi-film"></i>
+                        <span>{{ stats.games }} Spiele</span>
+                    </span>
+                    <span class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
+                        <i class="bi bi-play-circle"></i>
+                        <span>{{ stats.runs }} Laeufe</span>
+                    </span>
+                    <span class="inline-flex items-center gap-2 rounded-full border border-slate-200/80 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
+                        <i class="bi bi-file-earmark-text"></i>
+                        <span>{{ stats.reports }} Berichte</span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 xl:w-[25rem]">
+                <a href="{{ url_for('main.teams') }}" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/85 dark:bg-slate-900/60 px-4 py-4 text-left transition hover:bg-white dark:hover:bg-slate-900">
+                    <div class="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Step 1</div>
+                    <div class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">Teams pflegen</div>
+                    <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">Grundlage für Fokus, Gegner und Reports.</div>
+                </a>
+                <a href="{{ url_for('main.games') }}" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/85 dark:bg-slate-900/60 px-4 py-4 text-left transition hover:bg-white dark:hover:bg-slate-900">
+                    <div class="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Step 2</div>
+                    <div class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">Spiele anlegen</div>
+                    <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">Spielmaterial und Clip-Basis strukturieren.</div>
+                </a>
+                <a href="{{ url_for('main.runs') }}" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/85 dark:bg-slate-900/60 px-4 py-4 text-left transition hover:bg-white dark:hover:bg-slate-900">
+                    <div class="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Step 3</div>
+                    <div class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">Analyselaeufe starten</div>
+                    <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">Analyse pro Fokus-Team ausfuehren.</div>
+                </a>
+                <a href="{{ url_for('main.reports') }}" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/85 dark:bg-slate-900/60 px-4 py-4 text-left transition hover:bg-white dark:hover:bg-slate-900">
+                    <div class="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Step 4</div>
+                    <div class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">Berichte erstellen</div>
+                    <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">Tendencies, Executive View und Export bündeln.</div>
+                </a>
+            </div>
+        </div>
     </div>
-    <h1 class="text-3xl font-bold text-slate-900 dark:text-white">AI-gestützte Spielanalyse für Staff und Coaches</h1>
-    <p class="text-slate-500 dark:text-slate-400 mt-2 max-w-3xl">
-        Dieser erste Stand stellt die Plattformbasis bereit: zentrale Anmeldung über <code>tt-auth</code>,
-        Analytics-Dashboard, Postgres-Anbindung und erste Domänenobjekte für Teams, Seasons und Games.
-    </p>
 </div>
 
-<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-5">
         <div class="flex items-center justify-between mb-4">
             <div class="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
                 <i class="bi bi-diagram-3 text-indigo-600 dark:text-indigo-400 text-2xl"></i>
@@ -25,17 +71,17 @@
         <div class="text-3xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.teams }}</div>
     </div>
 
-    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-5">
         <div class="flex items-center justify-between mb-4">
             <div class="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
                 <i class="bi bi-film text-indigo-600 dark:text-indigo-400 text-2xl"></i>
             </div>
         </div>
-        <div class="text-sm text-slate-500 dark:text-slate-400">Games</div>
+        <div class="text-sm text-slate-500 dark:text-slate-400">Spiele</div>
         <div class="text-3xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.games }}</div>
     </div>
 
-    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-5">
         <div class="flex items-center justify-between mb-4">
             <div class="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
                 <i class="bi bi-hourglass-split text-indigo-600 dark:text-indigo-400 text-2xl"></i>
@@ -46,57 +92,61 @@
         <div class="text-3xl font-bold text-slate-900 dark:text-white mt-1">Basis</div>
     </div>
 
-    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-5">
         <div class="flex items-center justify-between mb-4">
             <div class="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
                 <i class="bi bi-play-circle text-indigo-600 dark:text-indigo-400 text-2xl"></i>
             </div>
         </div>
-        <div class="text-sm text-slate-500 dark:text-slate-400">Analysis Runs</div>
+        <div class="text-sm text-slate-500 dark:text-slate-400">Analyselaeufe</div>
         <div class="text-3xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.runs }}</div>
     </div>
 
-    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-5">
         <div class="flex items-center justify-between mb-4">
             <div class="p-3 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
                 <i class="bi bi-file-earmark-text text-indigo-600 dark:text-indigo-400 text-2xl"></i>
             </div>
         </div>
-        <div class="text-sm text-slate-500 dark:text-slate-400">Reports</div>
+        <div class="text-sm text-slate-500 dark:text-slate-400">Berichte</div>
         <div class="text-3xl font-bold text-slate-900 dark:text-white mt-1">{{ stats.reports }}</div>
     </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <section class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
-        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Nächste Ausbaustufen</h2>
+    <section class="bg-white dark:bg-slate-800 rounded-[1.75rem] shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Schnellstart</h2>
         <div class="space-y-4">
-            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div class="font-medium text-slate-900 dark:text-white">1. Gegner- und Spielverwaltung</div>
-                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Teams, Spiele und Analyse-Läufe im UI erfassen.</div>
-            </div>
-            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div class="font-medium text-slate-900 dark:text-white">2. Clip-Upload und Queue</div>
-                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Clips hochladen und über Nacht asynchron analysieren.</div>
-            </div>
-            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div class="font-medium text-slate-900 dark:text-white">3. LiteLLM und Gemini</div>
-                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Strukturiertes Play-JSON pro Clip erzeugen.</div>
-            </div>
+            <a href="{{ url_for('main.teams') }}" class="block rounded-2xl border border-slate-200 dark:border-slate-700 p-4 hover:bg-slate-50 dark:hover:bg-slate-900/30 transition">
+                <div class="font-medium text-slate-900 dark:text-white">1. Teams vorbereiten</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Eigenes Team und Gegner als Basis für Scouting anlegen.</div>
+            </a>
+            <a href="{{ url_for('main.games') }}" class="block rounded-2xl border border-slate-200 dark:border-slate-700 p-4 hover:bg-slate-50 dark:hover:bg-slate-900/30 transition">
+                <div class="font-medium text-slate-900 dark:text-white">2. Spiel und Clips erfassen</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Spielmaterial und Breakdown-Kontext sauber strukturieren.</div>
+            </a>
+            <a href="{{ url_for('main.runs') }}" class="block rounded-2xl border border-slate-200 dark:border-slate-700 p-4 hover:bg-slate-50 dark:hover:bg-slate-900/30 transition">
+                <div class="font-medium text-slate-900 dark:text-white">3. Analyselaeufe ausfuehren</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Perspektiven pro Fokus-Team ausführen und anschließend bündeln.</div>
+            </a>
+            <a href="{{ url_for('main.reports') }}" class="block rounded-2xl border border-slate-200 dark:border-slate-700 p-4 hover:bg-slate-50 dark:hover:bg-slate-900/30 transition">
+                <div class="font-medium text-slate-900 dark:text-white">4. Berichte exportieren</div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Insights, Tendencies und PDF-Export für Coaches zusammenführen.</div>
+            </a>
         </div>
     </section>
 
-    <section class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
-        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Letzte Games</h2>
+    <section class="bg-white dark:bg-slate-800 rounded-[1.75rem] shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Letzte Spiele</h2>
         {% if recent_games %}
         <div class="space-y-3">
             {% for game in recent_games %}
-            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+            <a href="{{ url_for('main.game_clips', game_id=game.id) }}" class="block rounded-2xl border border-slate-200 dark:border-slate-700 p-4 hover:bg-slate-50 dark:hover:bg-slate-900/30 transition">
                 <div class="font-medium text-slate-900 dark:text-white">{{ game.label }}</div>
                 <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ game.home_team.name if game.home_team else 'Unbekannt' }} vs. {{ game.away_team.name if game.away_team else 'Unbekannt' }} · {{ game.source_type }}</div>
-            </div>
+            </a>
             {% endfor %}
-        </div>
+            </div>
         {% else %}
         <div class="flex flex-col items-center justify-center py-12 text-center">
             <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
@@ -108,15 +158,15 @@
         {% endif %}
     </section>
 
-    <section class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
-        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Letzte Runs</h2>
+    <section class="bg-white dark:bg-slate-800 rounded-[1.75rem] shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Letzte Analyselaeufe</h2>
         {% if recent_runs %}
         <div class="space-y-3">
             {% for run in recent_runs %}
-            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+            <a href="{{ url_for('main.runs') }}" class="block rounded-2xl border border-slate-200 dark:border-slate-700 p-4 hover:bg-slate-50 dark:hover:bg-slate-900/30 transition">
                 <div class="font-medium text-slate-900 dark:text-white">{{ run.game.label }}</div>
                 <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Fokus: {{ run.focus_team.name }} · {{ run.analysis_mode }}</div>
-            </div>
+            </a>
             {% endfor %}
         </div>
         {% else %}
@@ -124,21 +174,21 @@
             <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
                 <i class="bi bi-play-circle text-slate-400 text-4xl"></i>
             </div>
-            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Runs angelegt</h3>
+            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Analyselaeufe angelegt</h3>
             <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Ein Spiel kann mehrere Analyse-Perspektiven haben.</p>
         </div>
         {% endif %}
     </section>
 
-    <section class="bg-white dark:bg-slate-800 rounded-2xl shadow border border-slate-200 dark:border-slate-700 p-6">
-        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Letzte Reports</h2>
+    <section class="bg-white dark:bg-slate-800 rounded-[1.75rem] shadow border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-white mb-4">Letzte Berichte</h2>
         {% if recent_reports %}
         <div class="space-y-3">
             {% for report in recent_reports %}
-            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+            <a href="{{ url_for('main.report_detail', report_id=report.id) }}" class="block rounded-2xl border border-slate-200 dark:border-slate-700 p-4 hover:bg-slate-50 dark:hover:bg-slate-900/30 transition">
                 <div class="font-medium text-slate-900 dark:text-white">{{ report.title }}</div>
                 <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">Fokus: {{ report.focus_team.name }} · {{ report.report_type }}</div>
-            </div>
+            </a>
             {% endfor %}
         </div>
         {% else %}
@@ -146,8 +196,8 @@
             <div class="p-4 bg-slate-100 dark:bg-slate-700 rounded-2xl mb-4">
                 <i class="bi bi-file-earmark-text text-slate-400 text-4xl"></i>
             </div>
-            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Reports erstellt</h3>
-            <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Mehrere Runs für dasselbe Fokus-Team ergeben einen gemeinsamen Report.</p>
+            <h3 class="text-lg font-semibold text-slate-700 dark:text-slate-300">Noch keine Berichte erstellt</h3>
+            <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Mehrere Analyselaeufe fuer dasselbe Fokus-Team ergeben einen gemeinsamen Bericht.</p>
         </div>
         {% endif %}
     </section>

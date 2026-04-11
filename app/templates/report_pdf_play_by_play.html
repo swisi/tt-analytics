@@ -18,36 +18,59 @@
                 font-size: 8pt;
             }
         }
+
+        :root {
+            --bg-soft: #eef2ff;
+            --bg-card: #f8fafc;
+            --border: #cbd5e1;
+            --text: #0f172a;
+            --muted: #475569;
+            --brand: #312e81;
+            --brand-soft: #4338ca;
+            --success-bg: #ecfdf5;
+            --success-text: #047857;
+        }
+
+        * { box-sizing: border-box; }
         body {
             font-family: "DejaVu Sans", sans-serif;
-            color: #0f172a;
-            font-size: 9pt;
-            line-height: 1.35;
+            color: var(--text);
+            font-size: 9.1pt;
+            line-height: 1.4;
             margin: 0;
         }
         h1, h2, h3 { margin: 0; }
-        .hero, .card, .section, .series-card {
-            border: 1px solid #cbd5e1;
-            border-radius: 12px;
-            background: #fff;
+        .hero, .card, .section, .series-card, .timeline-row {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: white;
         }
         .hero {
             background: linear-gradient(135deg, #eef2ff, #e0e7ff);
-            padding: 16px 18px;
-            margin-bottom: 14px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
         }
-        .hero h1 { color: #312e81; font-size: 22pt; margin-bottom: 6px; }
+        .hero h1 {
+            color: var(--brand);
+            font-size: 24pt;
+            line-height: 1.06;
+            margin-bottom: 6px;
+        }
+        .hero-subtitle {
+            color: var(--muted);
+            font-size: 10pt;
+        }
         .meta-grid, .stats-grid, .quarter-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
         .card {
-            padding: 10px 12px;
+            padding: 11px 12px;
         }
         .label {
-            color: #475569;
+            color: var(--muted);
             font-size: 8pt;
             text-transform: uppercase;
             letter-spacing: .05em;
@@ -62,44 +85,94 @@
             padding: 14px;
             margin-bottom: 12px;
         }
+        .section-header {
+            background: var(--bg-soft);
+            border-radius: 12px;
+            padding: 9px 12px;
+            margin-bottom: 10px;
+        }
         .section h2 {
-            color: #312e81;
+            color: var(--brand);
             font-size: 13pt;
-            margin-bottom: 8px;
+            margin-bottom: 0;
+        }
+        .section-subtitle {
+            color: var(--muted);
+            font-size: 8.5pt;
+            margin-top: 2px;
         }
         .series-card {
             padding: 10px 12px;
             margin-bottom: 8px;
             break-inside: avoid;
         }
-        .report-markdown h1, .report-markdown h2, .report-markdown h3 { color: #0f172a; }
-        .report-markdown h2 { color: #312e81; font-size: 11pt; margin: 10px 0 6px; }
+        .report-markdown h1, .report-markdown h2, .report-markdown h3 { color: var(--text); }
+        .report-markdown h2 { color: var(--brand); font-size: 11pt; margin: 10px 0 6px; }
         .report-markdown p { margin: 0 0 7px; }
         .report-markdown ul { margin: 0 0 8px 16px; padding: 0; }
+        .insight-stack {
+            display: grid;
+            gap: 12px;
+        }
         table { width: 100%; border-collapse: collapse; }
-        th, td { border-bottom: 1px solid #e2e8f0; padding: 6px 4px; vertical-align: top; }
+        th, td { border-bottom: 1px solid #e2e8f0; padding: 7px 6px; vertical-align: top; }
         th {
             text-align: left;
-            color: #475569;
+            color: var(--muted);
             font-size: 7.6pt;
             text-transform: uppercase;
             letter-spacing: .04em;
         }
         tr:last-child td { border-bottom: 0; }
-        .small { color: #475569; font-size: 8pt; }
+        .small { color: var(--muted); font-size: 8pt; }
+        .timeline-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        .timeline-table thead th {
+            background: var(--bg-soft);
+            border-bottom-color: var(--border);
+            padding-top: 8px;
+            padding-bottom: 8px;
+        }
+        .timeline-table td {
+            background: white;
+        }
+        .timeline-play-id {
+            font-size: 10pt;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .timeline-badge {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 7.2pt;
+            font-weight: 700;
+            margin: 2px 4px 0 0;
+        }
+        .timeline-badge.success {
+            background: var(--success-bg);
+            color: var(--success-text);
+            border-color: #a7f3d0;
+        }
     </style>
 </head>
 <body>
     <div class="hero">
         <div class="label">Tigers Analytics</div>
         <h1>{{ report.title }}</h1>
-        <div class="small">Fokus-Team: {{ report.focus_team.name }} · Play by Play · Stand {{ generated_at.strftime('%d.%m.%Y %H:%M') }}</div>
+        <div class="hero-subtitle">Fokus-Team: {{ report.focus_team.name }} · Spielzugfolge · Stand {{ generated_at.strftime('%d.%m.%Y %H:%M') }}</div>
     </div>
 
     <div class="meta-grid">
         <div class="card">
             <div class="label">Status</div>
-            <div class="value">{{ report.status }}</div>
+            <div class="value">{{ report_status_labels.get(report.status, report.status) }}</div>
         </div>
         <div class="card">
             <div class="label">Analysierte Clips</div>
@@ -127,7 +200,10 @@
     </div>
 
     <div class="section">
-        <h2>Executive Overview</h2>
+        <div class="section-header">
+            <h2>Executive Uebersicht</h2>
+            <div class="section-subtitle">Verdichtete Einordnung des Spiels mit den wichtigsten Mustern.</div>
+        </div>
         <div class="quarter-grid">
             {% for card in view_model.at_a_glance %}
             <div class="card">
@@ -143,60 +219,107 @@
     </div>
 
     <div class="section">
-        <h2>Quarter Summary</h2>
-        <div class="quarter-grid">
-            {% for entry in play_view.quarter_summaries %}
-            <div class="card">
-                <div class="label">Q{{ entry.quarter }}</div>
-                <div class="value" style="font-size: 12pt;">{{ entry.play_count }} Plays</div>
-                <div class="small">{{ entry.top_type }} · {{ entry.top_result }} · Explosive {{ entry.explosive_count }}</div>
+        <div class="section-header">
+            <h2>Game Flow Insights</h2>
+            <div class="section-subtitle">Quarter-Muster und Serienverlauf in einer zusammenhängenden Seitenspur.</div>
+        </div>
+        <div class="insight-stack">
+            <div>
+                <div class="label" style="margin-bottom: 8px;">Quarter Summary</div>
+                <div class="quarter-grid" style="margin-bottom: 0;">
+                    {% for entry in play_view.quarter_summaries %}
+                    <div class="card">
+                        <div class="label">Q{{ entry.quarter }}</div>
+                        <div class="value" style="font-size: 12pt;">{{ entry.play_count }} Plays</div>
+                        <div class="small">{{ entry.top_type }} · {{ entry.top_result }} · Explosive {{ entry.explosive_count }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
-            {% endfor %}
+
+            <div>
+                <div class="label" style="margin-bottom: 8px;">Series Breakdown</div>
+                {% for entry in play_view.series_summaries %}
+                <div class="series-card">
+                    <strong>{{ entry.label }}</strong><br>
+                    <span class="small">{{ entry.play_count }} Plays · {{ entry.top_type }} · Start {{ entry.start_down }} · Ende {{ entry.end_result }}</span>
+                    <div style="margin-top: 6px;">{{ entry.summary }}</div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
     </div>
 
     <div class="section">
-        <h2>Series Breakdown</h2>
-        {% for entry in play_view.series_summaries %}
-        <div class="series-card">
-            <strong>{{ entry.label }}</strong><br>
-            <span class="small">{{ entry.play_count }} Plays · {{ entry.top_type }} · Start {{ entry.start_down }} · Ende {{ entry.end_result }}</span>
-            <div style="margin-top: 6px;">{{ entry.summary }}</div>
+        <div class="section-header">
+            <h2>Play Timeline</h2>
+            <div class="section-subtitle">Kompakt auf vier Spalten reduziert, damit Situation, Struktur und Outcome lesbar bleiben.</div>
         </div>
-        {% endfor %}
-    </div>
-
-    <div class="section">
-        <h2>Play Timeline</h2>
-        <table>
+        <table class="timeline-table">
             <thead>
                 <tr>
                     <th>Play</th>
                     <th>Situation</th>
-                    <th>Structure</th>
-                    <th>Defense</th>
-                    <th>Summary</th>
-                    <th>Outcome</th>
+                    <th>Structure & Defense</th>
+                    <th>Summary & Outcome</th>
                 </tr>
             </thead>
             <tbody>
                 {% for play in play_view.plays %}
                 <tr>
-                    <td>#{{ play.play_number or play.clip_number or loop.index }}<br><span class="small">Q{{ play.quarter }} · Serie {{ play.series }}</span></td>
-                    <td>{{ play.down }} & {{ play.distance }}<br><span class="small">{{ play.field_position }} · {{ play.hash }}</span></td>
-                    <td>{{ play.play_type }}<br><span class="small">{{ play.formation }} · {{ play.personnel }}</span></td>
-                    <td>{{ play.front }}<br><span class="small">{{ play.coverage }} · {{ play.blitz }} · {{ play.pressure }}</span></td>
-                    <td>{{ play.summary }}</td>
-                    <td>{{ play.result }}<br><span class="small">{{ play.yards_gained if play.yards_gained is not none else 'n/a' }} Yds</span></td>
+                    <td>
+                        <div class="timeline-play-id">#{{ play.play_number or play.clip_number or loop.index }}</div>
+                        <div class="small">{% if play.quarter != 'n/a' %}Q{{ play.quarter }}{% else %}Quarter offen{% endif %} · {% if play.series != 'n/a' %}Serie {{ play.series }}{% else %}Serie offen{% endif %}</div>
+                        <div>
+                            <span class="timeline-badge">{{ play.side_of_ball }}</span>
+                            <span class="timeline-badge">{{ play.play_type }}</span>
+                            {% if play.explosive %}<span class="timeline-badge success">Explosive</span>{% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if play.down != 'n/a' or play.distance != 'n/a' %}
+                        <div><strong>{{ '-' if play.down == 'n/a' else play.down }} & {{ '-' if play.distance == 'n/a' else play.distance }}</strong></div>
+                        {% else %}
+                        <div><strong>Down/Distance offen</strong></div>
+                        {% endif %}
+                        <div class="small">{{ '-' if play.field_position == 'n/a' else play.field_position }} · {{ '-' if play.hash == 'n/a' else play.hash }}</div>
+                        {% if play.situation != 'n/a' %}<div class="small">{{ play.situation }}</div>{% endif %}
+                    </td>
+                    <td>
+                        <div><strong>{{ play.formation }}</strong></div>
+                        <div class="small">{{ '-' if play.personnel == 'n/a' else play.personnel }} · {{ '-' if play.motion == 'n/a' else play.motion }}</div>
+                        <div style="margin-top: 6px;"><strong>{{ play.front }}</strong></div>
+                        <div class="small">{{ play.coverage }} · {{ '-' if play.blitz == 'n/a' else play.blitz }} · {{ '-' if play.pressure == 'n/a' else play.pressure }}</div>
+                    </td>
+                    <td>
+                        <div>{{ play.summary }}</div>
+                        <div style="margin-top: 6px;"><strong>{{ play.result }}</strong></div>
+                        <div class="small">{{ play.yards_gained if play.yards_gained is not none else 'n/a' }} Yds · {{ play.field_zone }}</div>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
+    {% if play_view.notes %}
+    <div class="section">
+        <div class="section-header">
+            <h2>Coach Notes</h2>
+            <div class="section-subtitle">Direkte Hinweise aus fertigen Clip-Analysen.</div>
+        </div>
+        {% for note in play_view.notes %}
+        <div class="series-card">{{ note }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     {% if view_model.detail_sections %}
     <div class="section">
-        <h2>AI Play-by-Play Report</h2>
+        <div class="section-header">
+            <h2>AI Play-by-Play Report</h2>
+            <div class="section-subtitle">Strukturierter Vollbericht auf Basis der AI-Teilsummaries.</div>
+        </div>
         {% for section in view_model.detail_sections %}
         <div class="series-card">
             <strong>{{ section.title }}</strong>

@@ -24,10 +24,57 @@ bp = Blueprint("main", __name__)
 
 
 REPORT_TYPE_LABELS = {
-    "multi_game_opponent": "Multi Game Opponent",
-    "single_game": "Single Game",
-    "self_scout": "Self Scout",
-    "play_by_play": "Play by Play",
+    "multi_game_opponent": "Mehrspiel-Gegnerscouting",
+    "single_game": "Einzelspiel",
+    "self_scout": "Selbstscout",
+    "play_by_play": "Spielzugfolge",
+}
+
+REPORT_STATUS_LABELS = {
+    "draft": "Entwurf",
+    "completed": "Abgeschlossen",
+    "completed_with_errors": "Abgeschlossen mit Fehlern",
+    "running": "Laeuft",
+    "queued": "In Warteschlange",
+    "failed": "Fehlgeschlagen",
+}
+
+ANALYSIS_MODE_LABELS = {
+    "opponent_scouting": "Gegnerscouting",
+    "self_scouting": "Selbstscout",
+    "quality_control": "Qualitaetskontrolle",
+    "play_by_play": "Spielzugfolge",
+}
+
+SOURCE_TYPE_LABELS = {
+    "opponent_film": "Gegnerfilm",
+    "own_game": "Eigenes Spiel",
+    "practice_cutup": "Trainings-Cutup",
+}
+
+PLAY_VALUE_LABELS = {
+    "Run": "Lauf",
+    "Pass": "Pass",
+    "Punt": "Punt",
+    "Kickoff": "Kickoff",
+    "Kickoff Return": "Kickoff-Return",
+    "Punt Return": "Punt-Return",
+    "Field Goal": "Field Goal",
+    "Extra Point": "Extrapunkt",
+    "Penalty": "Strafe",
+    "Offense": "Offense",
+    "Defense": "Defense",
+    "Special Teams": "Special Teams",
+    "Short Gain": "Kurzer Raumgewinn",
+    "Positive Gain": "Positiver Raumgewinn",
+    "Big Gain": "Langer Raumgewinn",
+    "Touchdown": "Touchdown",
+    "Tackle For Loss": "Tackle for Loss",
+    "No Gain": "Kein Raumgewinn",
+    "Incomplete": "Incomplete",
+    "Interception": "Interception",
+    "Sack": "Sack",
+    "Fumble": "Fumble",
 }
 
 
@@ -35,7 +82,8 @@ REPORT_TYPE_LABELS = {
 
 def require_login(endpoint="main.index"):
     if not session.get("user_id"):
-        return redirect(url_for("auth.login", next=url_for(endpoint)))
+        next_page = request.full_path if request.method == "GET" and request.query_string else request.path if request.method == "GET" else url_for(endpoint)
+        return redirect(url_for("auth.login", next=next_page))
     return None
 
 
@@ -622,8 +670,7 @@ def _build_breakdown_export_rows(report, plays):
     return rows
 
 
-def _collect_report_metrics(report):
-    plays = _collect_report_plays(report)
+def _collect_tendency_metrics(plays):
     play_types = Counter()
     side_of_ball = Counter()
     formations = Counter()
@@ -637,7 +684,7 @@ def _collect_report_metrics(report):
     distances = Counter()
     hashes = Counter()
     field_positions = Counter()
-    notes = []
+
     for play in plays:
         _count_bucket(play_types, play["play_type"], "play_type")
         _count_bucket(side_of_ball, play["side_of_ball"], "side_of_ball")
@@ -656,10 +703,9 @@ def _collect_report_metrics(report):
             _count_bucket(hashes, play["hash"], "hash")
         if play["field_position"] != "n/a":
             _count_bucket(field_positions, play["field_position"], "yard_line")
-        notes.extend(play["notes"])
 
     return {
-        "analyzed_clips": len(plays),
+        "play_count": len(plays),
         "top_play_types": play_types.most_common(5),
         "top_sides": side_of_ball.most_common(5),
         "top_formations": formations.most_common(5),
@@ -673,8 +719,34 @@ def _collect_report_metrics(report):
         "top_distances": distances.most_common(5),
         "top_hashes": hashes.most_common(5),
         "top_field_positions": field_positions.most_common(5),
-        "notes": notes[:12],
     }
+
+
+def _collect_report_metrics(report):
+    plays = _collect_report_plays(report)
+    notes = []
+    for play in plays:
+        notes.extend(play["notes"])
+
+    overall_metrics = _collect_tendency_metrics(plays)
+    focus_offense_plays = [play for play in plays if play["side_of_ball"] == "Offense"]
+    focus_defense_plays = [play for play in plays if play["side_of_ball"] == "Defense"]
+    focus_special_plays = [play for play in plays if play["side_of_ball"] == "Special Teams"]
+    focus_all_plays = focus_offense_plays + focus_defense_plays + focus_special_plays
+
+    metrics = {
+        "analyzed_clips": len(plays),
+        "notes": notes[:12],
+        "play_tendencies": overall_metrics,
+        "focus_team_tendencies": {
+            "all": _collect_tendency_metrics(focus_all_plays),
+            "offense": _collect_tendency_metrics(focus_offense_plays),
+            "defense": _collect_tendency_metrics(focus_defense_plays),
+            "special_teams": _collect_tendency_metrics(focus_special_plays),
+        },
+    }
+    metrics.update(overall_metrics)
+    return metrics
 
 
 def _render_report_markdown(text):
@@ -712,36 +784,36 @@ def _build_report_view_model(report, metrics):
         at_a_glance = [
             {
                 "title": "Play Flow",
-                "value": _top_metric_label(metrics["top_play_types"]),
-                "detail": f"Result: {_top_metric_label(metrics['top_results'])}",
+                "value": _top_metric_label(metrics["play_tendencies"]["top_play_types"]),
+                "detail": f"Result: {_top_metric_label(metrics['play_tendencies']['top_results'])}",
             },
             {
                 "title": "Defense",
-                "value": _top_metric_label(metrics["top_fronts"]),
-                "detail": f"Coverage: {_top_metric_label(metrics['top_coverages'])}",
+                "value": _top_metric_label(metrics["focus_team_tendencies"]["defense"]["top_fronts"]),
+                "detail": f"Coverage: {_top_metric_label(metrics['focus_team_tendencies']['defense']['top_coverages'])}",
             },
             {
                 "title": "Situation",
-                "value": _top_metric_label(metrics["top_downs"]),
-                "detail": f"Field: {_top_metric_label(metrics['top_field_positions'])}",
+                "value": _top_metric_label(metrics["play_tendencies"]["top_downs"]),
+                "detail": f"Field: {_top_metric_label(metrics['play_tendencies']['top_field_positions'])}",
             },
         ]
     else:
         at_a_glance = [
             {
-                "title": "Offense",
-                "value": _top_metric_label(metrics["top_play_types"]),
-                "detail": f"Formation: {_top_metric_label(metrics['top_formations'])}",
+                "title": "Gesamttendenzen",
+                "value": _top_metric_label(metrics["play_tendencies"]["top_play_types"]),
+                "detail": f"Result: {_top_metric_label(metrics['play_tendencies']['top_results'])}",
             },
             {
-                "title": "Defense",
-                "value": _top_metric_label(metrics["top_fronts"]),
-                "detail": f"Coverage: {_top_metric_label(metrics['top_coverages'])}",
+                "title": "Fokus-Team Offense",
+                "value": _top_metric_label(metrics["focus_team_tendencies"]["offense"]["top_play_types"]),
+                "detail": f"Formation: {_top_metric_label(metrics['focus_team_tendencies']['offense']['top_formations'])}",
             },
             {
-                "title": "Situation",
-                "value": _top_metric_label(metrics["top_results"]),
-                "detail": f"Top Down: {_top_metric_label(metrics['top_downs'])}",
+                "title": "Fokus-Team Defense",
+                "value": _top_metric_label(metrics["focus_team_tendencies"]["defense"]["top_fronts"]),
+                "detail": f"Coverage: {_top_metric_label(metrics['focus_team_tendencies']['defense']['top_coverages'])}",
             },
         ]
     return {
@@ -753,20 +825,40 @@ def _build_report_view_model(report, metrics):
 
 
 def _build_table_sections(metrics):
+    def basic_tables(section_metrics, include_side=False):
+        tables = [
+            {"title": "Play Types", "rows": section_metrics["top_play_types"], "column_title": "Play Type"},
+            {"title": "Formations", "rows": section_metrics["top_formations"], "column_title": "Formation"},
+            {"title": "Personnel", "rows": section_metrics["top_personnel"], "column_title": "Personnel"},
+            {"title": "Fronts", "rows": section_metrics["top_fronts"], "column_title": "Front"},
+            {"title": "Coverages", "rows": section_metrics["top_coverages"], "column_title": "Coverage"},
+            {"title": "Blitz Tendencies", "rows": section_metrics["top_blitz"], "column_title": "Blitz"},
+            {"title": "Pressure Tendencies", "rows": section_metrics["top_pressure"], "column_title": "Pressure"},
+            {"title": "Outcomes", "rows": section_metrics["top_results"], "column_title": "Outcome"},
+            {"title": "Down Tendencies", "rows": section_metrics["top_downs"], "column_title": "Down"},
+            {"title": "Distance Tendencies", "rows": section_metrics["top_distances"], "column_title": "Distance"},
+            {"title": "Hash Tendencies", "rows": section_metrics["top_hashes"], "column_title": "Hash"},
+            {"title": "Field Position", "rows": section_metrics["top_field_positions"], "column_title": "Yard Line"},
+        ]
+        if include_side:
+            tables.insert(1, {"title": "Sides of Ball", "rows": section_metrics["top_sides"], "column_title": "Side"})
+        return tables
+
     return [
-        {"title": "Play Types", "rows": metrics["top_play_types"], "column_title": "Play Type"},
-        {"title": "Sides of Ball", "rows": metrics["top_sides"], "column_title": "Side"},
-        {"title": "Formations", "rows": metrics["top_formations"], "column_title": "Formation"},
-        {"title": "Personnel", "rows": metrics["top_personnel"], "column_title": "Personnel"},
-        {"title": "Fronts", "rows": metrics["top_fronts"], "column_title": "Front"},
-        {"title": "Coverages", "rows": metrics["top_coverages"], "column_title": "Coverage"},
-        {"title": "Blitz Tendencies", "rows": metrics["top_blitz"], "column_title": "Blitz"},
-        {"title": "Pressure Tendencies", "rows": metrics["top_pressure"], "column_title": "Pressure"},
-        {"title": "Outcomes", "rows": metrics["top_results"], "column_title": "Outcome"},
-        {"title": "Down Tendencies", "rows": metrics["top_downs"], "column_title": "Down"},
-        {"title": "Distance Tendencies", "rows": metrics["top_distances"], "column_title": "Distance"},
-        {"title": "Hash Tendencies", "rows": metrics["top_hashes"], "column_title": "Hash"},
-        {"title": "Field Position", "rows": metrics["top_field_positions"], "column_title": "Yard Line"},
+        {
+            "title": "Gesamttendenzen",
+            "subtitle": "Aggregiert ueber das gesamte Spielmaterial im Report.",
+            "tables": basic_tables(metrics["play_tendencies"], include_side=True),
+        },
+        {
+            "title": "Fokus-Team-Tendenzen",
+            "subtitle": "Nur aus Sicht des Fokus-Teams, getrennt nach Unit.",
+            "groups": [
+                {"title": "Offense", "tables": basic_tables(metrics["focus_team_tendencies"]["offense"])},
+                {"title": "Defense", "tables": basic_tables(metrics["focus_team_tendencies"]["defense"])},
+                {"title": "Special Teams", "tables": basic_tables(metrics["focus_team_tendencies"]["special_teams"])},
+            ],
+        },
     ]
 
 
@@ -782,6 +874,8 @@ def _build_pdf_response(report, metrics):
         table_sections=_build_table_sections(metrics),
         play_view=play_view,
         generated_at=datetime.now(),
+        report_type_labels=REPORT_TYPE_LABELS,
+        report_status_labels=REPORT_STATUS_LABELS,
     )
     pdf_bytes = HTML(string=html, base_url=str(Path(current_app.root_path).parent)).write_pdf()
     safe_title = re.sub(r"[^A-Za-z0-9_-]+", "_", (report.title or f"report_{report.id}").strip()).strip("_")
@@ -1262,7 +1356,43 @@ def games():
         return redirect(url_for("main.games"))
 
     games = Game.query.order_by(Game.created_at.desc()).all()
-    return render_template("games.html", games=games, teams=teams, seasons=seasons)
+    clip_counts_by_game = {}
+    run_counts_by_game = {}
+    report_counts_by_game = {}
+    latest_report_by_game = {}
+
+    if games:
+        game_ids = [game.id for game in games]
+
+        for game_id, clip_count in db.session.query(Clip.game_id, db.func.count(Clip.id)).filter(Clip.game_id.in_(game_ids)).group_by(Clip.game_id).all():
+            clip_counts_by_game[game_id] = clip_count
+
+        for game_id, run_count in db.session.query(AnalysisRun.game_id, db.func.count(AnalysisRun.id)).filter(AnalysisRun.game_id.in_(game_ids)).group_by(AnalysisRun.game_id).all():
+            run_counts_by_game[game_id] = run_count
+
+        report_links = (
+            ReportRun.query.join(AnalysisRun, AnalysisRun.id == ReportRun.analysis_run_id)
+            .join(Report, Report.id == ReportRun.report_id)
+            .filter(AnalysisRun.game_id.in_(game_ids))
+            .order_by(Report.created_at.desc())
+            .all()
+        )
+        for entry in report_links:
+            game_id = entry.analysis_run.game_id
+            report_counts_by_game[game_id] = report_counts_by_game.get(game_id, 0) + 1
+            latest_report_by_game.setdefault(game_id, entry.report)
+
+    return render_template(
+        "games.html",
+        games=games,
+        teams=teams,
+        seasons=seasons,
+        source_type_labels=SOURCE_TYPE_LABELS,
+        clip_counts_by_game=clip_counts_by_game,
+        run_counts_by_game=run_counts_by_game,
+        report_counts_by_game=report_counts_by_game,
+        latest_report_by_game=latest_report_by_game,
+    )
 
 
 @bp.route("/games/<int:game_id>/edit", methods=["POST"])
@@ -1342,8 +1472,36 @@ def runs():
             flash("Analyse-Run wurde angelegt.", "success")
         return redirect(url_for("main.runs"))
 
+    prefill_game_id = request.args.get("game_id", type=int)
+    prefill_mode = (request.args.get("analysis_mode") or "").strip()
+    run_prefill = {
+        "open_create": request.args.get("create") == "1",
+        "game_id": str(prefill_game_id) if prefill_game_id else "",
+        "focus_team_id": "",
+        "analysis_mode": prefill_mode if prefill_mode in ANALYSIS_MODE_LABELS else "opponent_scouting",
+        "notes": "",
+    }
+
     runs = AnalysisRun.query.order_by(AnalysisRun.created_at.desc()).all()
-    return render_template("runs.html", runs=runs, games=games)
+    linked_reports_by_run = {}
+    if runs:
+        report_links = (
+            ReportRun.query.join(Report, Report.id == ReportRun.report_id)
+            .filter(ReportRun.analysis_run_id.in_([run.id for run in runs]))
+            .order_by(Report.created_at.desc())
+            .all()
+        )
+        for entry in report_links:
+            linked_reports_by_run.setdefault(entry.analysis_run_id, []).append(entry.report)
+
+    return render_template(
+        "runs.html",
+        runs=runs,
+        games=games,
+        analysis_mode_labels=ANALYSIS_MODE_LABELS,
+        linked_reports_by_run=linked_reports_by_run,
+        run_prefill=run_prefill,
+    )
 
 
 @bp.route("/runs/<int:run_id>/delete", methods=["POST"])
@@ -1427,6 +1585,40 @@ def reports():
         "status": (request.args.get("status") or "").strip(),
         "sort": (request.args.get("sort") or "newest").strip(),
     }
+    preselected_run_ids = [value for value in request.args.getlist("run_id") if value.isdigit()]
+    preselected_runs = [run for run in available_runs if str(run.id) in preselected_run_ids]
+    report_prefill = {
+        "open_create": request.args.get("create") == "1",
+        "selected_run_ids": {str(run.id) for run in preselected_runs},
+        "title": "",
+        "report_type": "",
+    }
+    if preselected_runs:
+        focus_team = preselected_runs[0].focus_team
+        unique_games = []
+        seen_game_ids = set()
+        for run in preselected_runs:
+            if run.game_id in seen_game_ids:
+                continue
+            unique_games.append(run.game)
+            seen_game_ids.add(run.game_id)
+
+        if len(preselected_runs) == 1:
+            selected_run = preselected_runs[0]
+            if selected_run.analysis_mode == "play_by_play":
+                report_prefill["report_type"] = "play_by_play"
+                report_prefill["title"] = f"Spielzugfolge {selected_run.game.label}"
+            elif selected_run.analysis_mode == "self_scouting":
+                report_prefill["report_type"] = "self_scout"
+                report_prefill["title"] = f"Selbstscout {selected_run.game.label}"
+            else:
+                report_prefill["report_type"] = "single_game"
+                report_prefill["title"] = f"Scouting Report {selected_run.game.label}"
+        else:
+            report_prefill["report_type"] = "self_scout" if all(run.analysis_mode == "self_scouting" for run in preselected_runs) else "multi_game_opponent"
+            report_prefill["title"] = f"Scouting Report {focus_team.name}"
+            if unique_games:
+                report_prefill["title"] = f"Scouting Report {focus_team.name} ({len(unique_games)} Games)"
 
     reports_query = Report.query
 
@@ -1461,6 +1653,8 @@ def reports():
         focus_teams=focus_teams,
         statuses=statuses,
         report_type_labels=REPORT_TYPE_LABELS,
+        analysis_mode_labels=ANALYSIS_MODE_LABELS,
+        report_prefill=report_prefill,
     )
 
 
@@ -1482,9 +1676,12 @@ def report_detail(report_id):
         report=report,
         metrics=metrics,
         view_model=view_model,
+        table_sections=_build_table_sections(metrics),
         play_view=play_view,
         active_tab=active_tab,
         report_type_labels=REPORT_TYPE_LABELS,
+        report_status_labels=REPORT_STATUS_LABELS,
+        play_value_labels=PLAY_VALUE_LABELS,
     )
 
 

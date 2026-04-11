@@ -1,6 +1,6 @@
 import logging
 import secrets
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlencode, urljoin, urlparse
 
 import jwt
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
@@ -19,21 +19,26 @@ def is_safe_url(target):
     return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc
 
 
-def get_auth_login_url():
-    return f"{current_app.config.get('AUTH_BASE_URL', 'http://localhost:8085').rstrip('/')}/login"
+def get_auth_login_url(next_page=None):
+    auth_base_url = current_app.config.get('AUTH_BASE_URL', 'http://localhost:8085').rstrip('/')
+    if next_page:
+        query = urlencode({'next_service': 'tt-analytics', 'next': next_page})
+        return f"{auth_base_url}/?{query}"
+    return f"{auth_base_url}/"
 
 
 @bp.route("/login", methods=["GET", "POST"])
 @limiter.limit("20/minute", methods=["POST"])
 def login():
-    auth_login_url = get_auth_login_url()
+    next_page = request.args.get("next")
+    if next_page and not is_safe_url(next_page):
+        next_page = None
+
+    auth_login_url = get_auth_login_url(next_page)
     if request.method == "POST":
         flash("Die Anmeldung erfolgt zentral über tt-auth.", "info")
         return redirect(auth_login_url)
 
-    next_page = request.args.get("next")
-    if next_page and not is_safe_url(next_page):
-        next_page = None
     return render_template("login.html", auth_login_url=auth_login_url, next_page=next_page)
 
 
@@ -91,4 +96,7 @@ def sso_login():
     session["username"] = user.username
     session["user_role"] = user.role
     flash("Erfolgreich via SSO angemeldet.", "success")
+    next_page = request.args.get("next")
+    if next_page and is_safe_url(next_page):
+        return redirect(next_page)
     return redirect(url_for("main.index"))

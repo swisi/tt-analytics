@@ -62,6 +62,22 @@
             color: var(--muted);
             font-size: 11pt;
         }
+        .hero-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .hero-chip {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(99, 102, 241, 0.18);
+            background: rgba(255, 255, 255, 0.72);
+            color: var(--text);
+            font-size: 8.6pt;
+            font-weight: 700;
+        }
         .meta-grid,
         .overview-grid,
         .tables-grid {
@@ -74,8 +90,34 @@
             margin-bottom: 14px;
         }
         .tables-grid {
-            grid-template-columns: repeat(3, 1fr);
-            gap: 9px;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 7px;
+        }
+        .tables-group {
+            margin-top: 10px;
+            padding: 9px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+        }
+        .tables-group h3 {
+            font-size: 12pt;
+            color: var(--brand);
+            margin-bottom: 8px;
+            break-after: avoid-page;
+            page-break-after: avoid;
+        }
+        .group-title {
+            display: inline-block;
+            padding: 4px 9px;
+            border-radius: 999px;
+            background: var(--bg-soft);
+            color: var(--brand);
+            font-size: 8.5pt;
+            font-weight: 700;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
         }
         .card {
             background: white;
@@ -157,17 +199,26 @@
         .report-markdown strong {
             font-weight: 700;
         }
+        .section-note {
+            margin-bottom: 10px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: var(--bg-card);
+            color: var(--muted);
+            font-size: 8.8pt;
+        }
         .table-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 10px;
+            padding: 8px;
             break-inside: avoid;
-            min-height: 132px;
+            page-break-inside: avoid;
+            min-height: 112px;
         }
         .table-card h3 {
-            font-size: 11pt;
-            margin-bottom: 7px;
+            font-size: 9.6pt;
+            margin-bottom: 6px;
         }
         table {
             width: 100%;
@@ -175,20 +226,20 @@
         }
         th {
             color: var(--muted);
-            font-size: 7.8pt;
+            font-size: 7.1pt;
             text-transform: uppercase;
             letter-spacing: .04em;
             text-align: left;
             border-bottom: 1px solid var(--border);
-            padding: 0 0 5px;
+            padding: 0 0 4px;
         }
         th:last-child,
         td:last-child {
             text-align: right;
         }
         td {
-            font-size: 9pt;
-            padding: 6px 0;
+            font-size: 8.1pt;
+            padding: 4px 0;
             border-bottom: 1px solid #e2e8f0;
             vertical-align: top;
         }
@@ -216,18 +267,23 @@
         <div class="hero-kicker">Tigers Analytics</div>
         <h1>{{ report.title }}</h1>
         <div class="hero-subtitle">
-            Fokus-Team: {{ report.focus_team.name }} · {{ report.report_type }} · Stand {{ generated_at.strftime('%d.%m.%Y %H:%M') }}
+            Fokus-Team: {{ report.focus_team.name }} · {{ report_type_labels.get(report.report_type, report.report_type) }} · Stand {{ generated_at.strftime('%d.%m.%Y %H:%M') }}
+        </div>
+        <div class="hero-chips">
+            <span class="hero-chip">{{ report.focus_team.name }}</span>
+            <span class="hero-chip">{{ report_type_labels.get(report.report_type, report.report_type) }}</span>
+            <span class="hero-chip">{{ report_status_labels.get(report.status, report.status) }}</span>
         </div>
     </div>
 
     <div class="meta-grid">
         <div class="card">
             <div class="meta-label">Report-Typ</div>
-            <div class="meta-value">{{ report.report_type }}</div>
+            <div class="meta-value">{{ report_type_labels.get(report.report_type, report.report_type) }}</div>
         </div>
         <div class="card">
             <div class="meta-label">Status</div>
-            <div class="meta-value">{{ report.status }}</div>
+            <div class="meta-value">{{ report_status_labels.get(report.status, report.status) }}</div>
         </div>
         <div class="card">
             <div class="meta-label">Clips</div>
@@ -238,7 +294,7 @@
     <div class="section">
         <div class="section-lead">
             <div class="section-header">
-                <div class="section-title">Executive Overview</div>
+                <div class="section-title">Executive Uebersicht</div>
                 <div class="section-subtitle">Verdichtete Coach-Zusammenfassung mit den wichtigsten Mustern.</div>
             </div>
             <div class="overview-grid">
@@ -259,63 +315,100 @@
     <div class="section">
         <div class="section-lead">
             <div class="section-header">
-                <div class="section-title">Tendency Tables</div>
-                <div class="section-subtitle">Aggregierte Top-Muster aus den Clip-Analysen.</div>
+                <div class="section-title">Tendenzaufschluesselung</div>
+                <div class="section-subtitle">Getrennt nach gesamtem Spielmaterial und Fokus-Team-Perspektive.</div>
             </div>
         </div>
-        <div class="tables-grid">
-            {% for table in table_sections %}
-            <div class="table-card">
-                <h3>{{ table.title }}</h3>
-                {% if table.rows %}
-                <table>
-                    <thead>
-                        <tr>
-                            <th>{{ table.column_title }}</th>
-                            <th>Count</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for label, count in table.rows[:4] %}
-                        <tr>
-                            <td>{{ label }}</td>
-                            <td>{{ count }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <div style="color: var(--muted); font-size: 9pt;">Keine Daten.</div>
-                {% endif %}
+        {% for section in table_sections %}
+        <div class="tables-group">
+            <h3>{{ section.title }}</h3>
+            {% if section.subtitle %}
+            <div class="section-note">{{ section.subtitle }}</div>
+            {% endif %}
+            {% if section.tables %}
+            <div class="tables-grid">
+                {% for table in section.tables %}
+                <div class="table-card">
+                    <h3>{{ table.title }}</h3>
+                    {% if table.rows %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>{{ table.column_title }}</th>
+                                <th>Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for label, count in table.rows[:4] %}
+                            <tr>
+                                <td>{{ label }}</td>
+                                <td>{{ count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div style="color: var(--muted); font-size: 9pt;">Keine Daten.</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if section.groups %}
+            {% for group in section.groups %}
+            <div style="margin-top: 10px;">
+                <div class="group-title">{{ group.title }}</div>
+                <div class="tables-grid">
+                    {% for table in group.tables %}
+                    <div class="table-card">
+                        <h3>{{ table.title }}</h3>
+                        {% if table.rows %}
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>{{ table.column_title }}</th>
+                                    <th>Count</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for label, count in table.rows[:4] %}
+                                <tr>
+                                    <td>{{ label }}</td>
+                                    <td>{{ count }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <div style="color: var(--muted); font-size: 9pt;">Keine Daten.</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
             {% endfor %}
+            {% endif %}
         </div>
+        {% endfor %}
     </div>
 
     <div class="section">
-        {% for section in view_model.detail_sections %}
-        {% if loop.first %}
+        {% if view_model.detail_sections %}
         <div class="section-lead">
             <div class="section-header">
                 <div class="section-title">Full Report</div>
                 <div class="section-subtitle">Strukturierter Vollbericht auf Basis der AI-Teilsummaries.</div>
             </div>
-            <div class="full-report-section">
-                <h3>{{ section.title }}</h3>
-                <div class="report-markdown">
-                    {{ section.html | safe }}
-                </div>
-            </div>
         </div>
-        {% else %}
+        {% for section in view_model.detail_sections %}
         <div class="full-report-section">
             <h3>{{ section.title }}</h3>
             <div class="report-markdown">
                 {{ section.html | safe }}
             </div>
         </div>
-        {% endif %}
         {% endfor %}
+        {% endif %}
     </div>
 </body>
 </html>
